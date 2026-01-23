@@ -1,10 +1,9 @@
 # Work-E
-4 robots who will overtake the universe (and small paper blocks)
-<br>
-This repository documents the architecture, communication flow, and API surface of a simple robotic control system composed of a web-based GUI, a Python backend, and multiple UDP-connected robot nodes (MCUs).
-<br>
+4 robots who will overtake the universe (and small paper blocks)\
+\
+This repository documents the architecture, communication flow, and API surface of a simple robotic control system composed of a web-based GUI, a Python backend, and multiple UDP-connected robot nodes (MCUs).\
+\
 There will be 6 branches, one for each robot, one for the server and the main one.
----
 
 ## Scripts Structure
 ### 1. Single Page Application (SPA)
@@ -47,8 +46,6 @@ Initially Arduino-based (PlatformIO planned later)
   * Generate routes to get to load position, base, and load destination
   * Track position while moving within the playground
   * Detect obstacles and generate alternative routes
-
----
 
 ## User-to-ESP32 General Flow
 

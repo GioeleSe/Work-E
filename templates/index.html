@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROBOT control</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet"  href="{{ url_for('static', filename='/style.css') }}">
+</head>
+<body id="body">
+
+<div class="container container-error d-none" id="container-error">
+    <h1 id="error-type">
+        %error type% Error: <span class="conn-error-text error-description"
+                                  id="error-description">%error description%</span>
+    </h1>
+    <h4>
+        Verbose Log: <span class="conn-error-text error-log" id="error-log">%verbose log%</span>
+    </h4>
+</div>
+
+<div class="container text-center" id="connecting-container">
+    <h1 id="connecting-label">
+        Connecting <span id="connecting-animation"> ... </span>
+    </h1>
+
+</div>
+
+<div class="container control-panel px-0 d-none" id="main-container">
+    <div class="panel-header d-flex justify-content-between align-items-center">
+        <span>Manual robot control</span>
+
+        <div class="robot-selector">
+            <select
+                id="robot-selector"
+                class="form-select form-select-sm"
+                onchange="set_robot(this.value)"
+                style="width: 140px;"
+            >
+                <option selected value="1">Robot 1</option>
+                <option value="2">Robot 2</option>
+                <option value="3">Robot 3</option>
+                <option value="4">Robot 4</option>
+                <option value="0">All Robots</option>
+                <option value="-1">No one</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="row g-0 p-4" id="left-container">
+        <div class="col-md-6 p-2">
+            <div class="sub-panel text-center">
+                <h6 class="mb-4 text-start">Directional Control</h6>
+                <div class="btn-grid mx-auto" style="max-width: 220px;">
+                    <button class="nav-btn" onmousedown="drive('forward')" onmouseup="drive('stop')">
+                        <i class="bi bi-caret-up-fill"></i>
+                        <div style="font-size: 0.7rem;">Forward</div>
+                    </button>
+                    <button class="nav-btn" onmousedown="drive('reverse')" onmouseup="drive('stop')">
+                        <i class="bi bi-caret-down-fill"></i>
+                        <div style="font-size: 0.7rem;">Reverse</div>
+                    </button>
+                    <button class="nav-btn" onmousedown="drive('left')" onmouseup="drive('stop')">
+                        <i class="bi bi-caret-left-fill"></i>
+                        <div style="font-size: 0.7rem;">Left</div>
+                    </button>
+                    <button class="nav-btn" onmousedown="drive('right')" onmouseup="drive('stop')">
+                        <i class="bi bi-caret-right-fill"></i>
+                        <div style="font-size: 0.7rem;">Right</div>
+                    </button>
+                </div>
+                <button class="stop-btn" onclick="emergency_stop()">STOP</button>
+            </div>
+        </div>
+
+        <div class="col-md-6 p-2" id="right-container">
+            <div class="sub-panel">
+                <h6 class="mb-4">Speed & Functions</h6>
+
+                <div class="mb-5">
+                    <div class="d-flex justify-content-between mb-2">
+                        <label for="speed"><i class="bi bi-speedometer2 label-icon"></i> Speed</label>
+                        <i class="bi bi-rocket-takeoff-fill text-primary"></i>
+                    </div>
+                    <input type="range" class="form-range" id="speed" max="100" min="10" step="1" onchange="set_property('speed', this.value)">
+                </div>
+
+                <div class="mb-5 container-camera-tilt disabled-block">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span><i class="bi bi-camera-video label-icon"></i> Camera Tilt</span>
+                        <i class="bi bi-arrows-expand text-primary"></i>
+                    </div>
+                    <input type="range" class="form-range" id="tilt" disabled>
+                </div>
+
+                <hr style="border-color: #333;">
+
+                <div class="form-check form-switch d-flex justify-content-between align-items-center p-0 mb-3">
+                    <label class="form-check-label">Headlights</label>
+                    <input id="lights-switch" class="form-check-input centered-from-right" type="checkbox" role="switch"
+                           onclick="set_property('lights', this.checked)">
+                </div>
+
+                <div class="form-check d-flex justify-content-between align-items-center p-0 disabled-block">
+                    <label class="form-check-label">Horn</label>
+                    <button class="nav-btn small-btn" onmousedown="set_property('horn', 'PLAY')" onmouseup="set_property('horn', 'STOP')">
+                        <i class="bi bi-volume-up contained-icon"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="{{ url_for('static', filename='/app.js') }}"   ></script>
+</body>
+</html>

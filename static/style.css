@@ -1,0 +1,138 @@
+:root {
+    --bg-color: #0f111a;
+    --bg-gray-10: #e0e0e0;
+    --bg-gray-9: #d5d4d4;
+    --bg-gray-8: #b3b3b3;
+    --bg-gray-7: #9f9e9e;
+    --bg-gray-4: #808080;
+    --bg-gray-3: #6c6c6c;
+    --bg-gray-2: #616161;
+    --bg-gray-1: #373737;
+    --bg-gray-0: #000000;
+    --card-bg: #1a1d29;
+    --accent-blue: #3a86ff;
+    --light-lavander: #4a568aa1;
+    --neon-red: #ff0044;
+
+}
+
+body {
+    background-color: var(--light-lavander);
+    /* background: radial-gradient(circle at center, #1b2030 0%, #0f111a 100%); */
+    color: #e0e0e0;
+    font-family: 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+}
+
+.control-panel {
+    background: var(--card-bg);
+    border: 1px solid #333;
+    border-radius: 12px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    max-width: 800px;
+}
+
+.panel-header {
+    background: #252936;
+    padding: 15px 20px;
+    border-bottom: 1px solid #333;
+    display: flex;
+    justify-content: space-between;
+}
+
+.sub-panel {
+    border: 1px solid #2d323e;
+    border-radius: 10px;
+    padding: 25px;
+    height: 100%;
+}
+
+/* Directional Buttons */
+.btn-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+}
+
+.nav-btn {
+    background: transparent;
+    border: 2px solid #444;
+    color: white;
+    padding: 20px;
+    border-radius: 12px;
+    transition: 0.2s;
+    font-size: 1.5rem;
+}
+
+.nav-btn:active,
+.nav-btn.active {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 15px rgba(58, 134, 255, 0.4);
+    color: var(--accent-blue);
+}
+
+.small-btn {
+    width: 1vw;
+    height: 1vh;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-content: center;
+    justify-content: center;
+    align-items: center;
+}
+
+.centerd-from-right {
+    transform: translateX(-20%);
+}
+
+.disabled-block {
+    color: var(--bg-gray-7);
+    filter: grayscale(0.4) brightness(0.6);
+}
+
+.contained-icon {
+    position: relative;
+}
+
+/* Neon Stop Button */
+.stop-btn {
+    background: transparent;
+    border: 3px solid var(--neon-red);
+    color: white;
+    border-radius: 50%;
+    width: 100px;
+    height: 100px;
+    font-weight: bold;
+    margin-top: 20px;
+    box-shadow: 0 0 20px rgba(255, 0, 68, 0.2);
+    transition: 0.3s;
+}
+
+.stop-btn:active {
+    background: var(--neon-red);
+    box-shadow: 0 0 30px var(--neon-red);
+}
+
+/* Sliders */
+.form-range::-webkit-slider-thumb {
+    background: var(--accent-blue);
+}
+
+.form-range::-moz-range-thumb {
+    background: var(--accent-blue);
+}
+
+.form-check-input:checked {
+    background-color: var(--accent-blue);
+    border-color: var(--accent-blue);
+}
+
+.label-icon {
+    font-size: 1.2rem;
+    margin-right: 10px;
+    opacity: 0.8;
+}

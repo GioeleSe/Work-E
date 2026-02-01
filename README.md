@@ -16,6 +16,7 @@ A standalone frontend with no external web server dependency (single HTML + Java
   * Clean, task-oriented GUI
 ---
 
+
 ### 2. Python Server (HTTP + UDP)
 * **HTTP Server**
   * Connects the SPA to the backend

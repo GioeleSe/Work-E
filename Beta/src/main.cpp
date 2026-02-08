@@ -1,25 +1,17 @@
 #include <Arduino.h>
-#include "UDP_RoboControl.h"
 #include "Beta.h"
+#include "UDP_Client.h"
+#include "UDP_Server.h"
 
 hw_timer_t *heartbeatTimer = NULL;
 
-Beta self;
-
+void setupMotors();
+void setupHeartbeatTimer();
+void setupWiFi();
 void IRAM_ATTR onHeartbeatTimer();
 
 void setup()
-{
-    // todo: setup motor control
-    //* -> set all motor control inputs to OUTPUT
-    //* -> set initial state as LOW (motors are turned off)
-    
-    // Setup heartbeat timer
-    heartbeatTimer = timerBegin(0, 80, true); // Timer 0, Clock divider 80
-    timerAttachInterrupt(heartbeatTimer, &onHeartbeatTimer, true);
-    timerAlarmWrite(heartbeatTimer, 5000000, true); // Trigger every 5 seconds
-    timerAlarmEnable(heartbeatTimer);
-    
+{    
     // Begin serial communication
     Serial.begin(115200);
     while (!Serial)
@@ -27,13 +19,55 @@ void setup()
         delay(100);
     }
     
-    // Initialize Wi-Fi
+    // Setup hardware related functions
+    setupMotors();
+    setupHeartbeatTimer();
+    
+    // Setup WiFi connection and communication with the server
+    setupWiFi();
+    connectToServer();
+    // startUDPServer();
+
+    //todo initialize self
+}
+
+void loop()
+{
+    // construct message types based on needs and events, then, sendMessage()
+    //? -> switch case?
+}
+
+void setupMotors()
+{
+    // Set all motor control pins to OUTPUT
+    pinMode(MOTOR_A1_PIN, OUTPUT);
+    pinMode(MOTOR_A2_PIN, OUTPUT);
+    pinMode(MOTOR_B1_PIN, OUTPUT);
+    pinMode(MOTOR_B2_PIN, OUTPUT);
+
+    // Initial state: motors are turned off
+    digitalWrite(MOTOR_A1_PIN, LOW);
+    digitalWrite(MOTOR_A2_PIN, LOW);
+    digitalWrite(MOTOR_B1_PIN, LOW);
+    digitalWrite(MOTOR_B2_PIN, LOW);
+}
+
+void setupHeartbeatTimer()
+{
+    heartbeatTimer = timerBegin(0, 80, true); // Timer 0, Clock divider 80
+    timerAttachInterrupt(heartbeatTimer, &onHeartbeatTimer, true);
+    timerAlarmWrite(heartbeatTimer, 2000000, true); // Trigger every 2 seconds
+    timerAlarmEnable(heartbeatTimer);
+}
+
+void setupWiFi()
+{
     WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, password);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     
     Serial.print("Connecting to WiFi");
     Serial.print("SSID: ");
-    Serial.print(ssid);
+    Serial.print(WIFI_SSID);
     while (WiFi.status() != WL_CONNECTED)
     {
         delay(500);
@@ -43,20 +77,9 @@ void setup()
     Serial.println("");
     Serial.print("Connected! IP Address: ");
     Serial.println(WiFi.localIP());
-    
-    connectToServer();
-    
-    // Start UDP server
-    // startUDPServer();
 }
 
-void loop()
-{
-    // construct message types based on needs and events, then, sendMessage()
-    //? -> switch case?
-}
-
-// Heartbeat timer ISR
+/// Heartbeat timer ISR
 void IRAM_ATTR onHeartbeatTimer()
 {
     checkConnection();

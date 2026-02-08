@@ -1,4 +1,4 @@
-#include "UDP_RoboControl.h"
+#include "UDP_Client.h"
 #include "Beta.h"
 
 enum MessageType
@@ -9,18 +9,18 @@ enum MessageType
     ERROR
 };
 
-AsyncUDP udp;
+AsyncUDP clientUDP;
 
 //? add a ConnectionStats struct to keep track of relevant information?
 
 void connectToServer()
 {
     Serial.println("Connecting to server ");
-    Serial.println(serverIP);
+    Serial.println(SERVER_IP);
     Serial.println(":");
-    Serial.println(serverPort);
+    Serial.println(SERVER_PORT);
 
-    if (udp.connect(serverIP, serverPort))
+    if (clientUDP.connect(SERVER_IP, SERVER_PORT))
     {
         Serial.println("UDP connection established successfully!");
     }
@@ -28,30 +28,23 @@ void connectToServer()
     {
         Serial.println("UDP connection failed :-(");
         Serial.println("Error code ");
-        Serial.println(udp.lastErr());
+        Serial.println(clientUDP.lastErr());
         
-        Serial.println("Retrying connection in 5 seconds");
-        delay(5000);
+        Serial.println("Retrying connection in 2 seconds");
+        delay(2000);
         connectToServer();
     }
 }
 
-void startUDPServer()
-{
-    Serial.println("STARTING UDP SERVER");
-    udp.listen(serverIP, serverPort);
-    // todo packet handler here
-    // udp.onPacket(...);
-}
 
-// Serialize and send message to server
+/// Serialize and send message to server
 void sendMessage(JsonDocument message)
 {
     String jsonString;
     serializeJson(message, jsonString);
     
     // Send data to server
-    udp.write((uint8_t *)jsonString.c_str(), jsonString.length());
+    clientUDP.write((uint8_t *)jsonString.c_str(), jsonString.length());
 }
 
 //? states and other relevant info will be passed as arguments to these functions
@@ -70,7 +63,7 @@ JsonDocument feedbackMessage()
     JsonDocument doc;
     
     doc["status"] = "PENDING"; // SUCCESS | FAILURE | PENDING
-    // todo OPTIONAL: error.code, error.message
+    // todo OPTIONAL: error_code, error_message
     
     return doc;
 }
@@ -93,7 +86,7 @@ JsonDocument errorMessage()
     JsonDocument doc;
     
     doc["severity"] = "LOW"; // LOW | MID | HIGH
-    // todo OPTIONAL: error.code, error.message
+    // todo OPTIONAL: error_code, error_message
     
     return doc;
 }
@@ -102,7 +95,7 @@ void checkConnection()
 {
     // Check if connection is still active
     // Otherwise, try to reconnect
-    if (!udp.connected())
+    if (!clientUDP.connected())
     {
         Serial.println("!! Connection lost !!");
         Serial.println("Attempting to reconnect...");

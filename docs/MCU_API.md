@@ -59,7 +59,7 @@ All UDP messages have to conform to the following envelope structure.
 {
   "protocol": "robot-net/1.0",
   "robot_id": [1 | 2 | 3 | 4],
-  "message_type": "[command | feedback | event | debug | error | heartbeat | reset]",
+  "message_type": "[command | feedback | event | debug | error | heartbeat ]",
   "request_id": "uuid", // 16 random bits defined by the server
   "mode": "manual | auto",
   "payload":{

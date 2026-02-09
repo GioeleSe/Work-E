@@ -189,9 +189,9 @@ C example:
 
 ---
 
-#### 3. `set_config`
+#### 3. `set_property`
 
-Runtime configuration update.
+Runtime property update.
 
 | Field                     | Type  | Allowed Values               |
 | ------------------------- | ----- | ---------------------------- |
@@ -231,25 +231,25 @@ C example:
     OBJECT_LOADER = 11,
     OBJECT_UNLOADER = 12,
     OBJECT_COMPACTER = 13
-  }ConfigFields;
-  typedef struct SetConfigPayload
+  }PropertyFields;
+  typedef struct SetPropertyPayload
   {
-    ConfigFields prop; // single prop from ConfigFields list
+    PropertyFields prop; // single prop from PropertyFields list
     void *new_value;  // new value type depends on what's the property
-  } SetConfigPayload;
+  } SetPropertyPayload;
 ```
 
 ---
 
-#### 4. `get_config`
+#### 4. `get_property`
 
-Get current configuration.
+Get runtime property value.
 
 | Field                     | Type  | Allowed Values               |
 | ------------------------- | ----- | ---------------------------- |
 | `prop`                    | str   | `speed_level`,`feedback_level`,`debug_level`,`obstacle_cleaner`, `object_unloader`, `object_compacter`, `object_loader` |
 
-The expected value (server side) is from the table above (in set_config description)
+The expected value (server side) is from the table above (in set_property description)
 
 C example:
 ```C
@@ -329,6 +329,7 @@ C example:
 | ----------- | --------------------------------------------------- |
 | `heartbeat` | Periodic status report                              |
 | `event`     | Asynchronous robot-generated event                  |
+| `property`  | Get Property reply                                  |
 | `feedback`  | Command execution response                          |
 | `debug`     | Non relevant events and internal functionalities    |
 | `error`     | Fault or unrecoverable issue                        |
@@ -367,7 +368,92 @@ DynamicJsonDocument dummyHeartbeat() {
 ```
 ---
 
-#### 2. `Feedback`
+#### 2. `Event`
+Asynchronous runtime event.
+
+| Field           | Type   | Allowed Values                               |
+| --------------- | ------ | -------------------------------------------- |
+| `event`         | enum   | see below (long list)                        |
+| `details`       | string | Optional description of the event            |
+
+| Event               | Description                  |
+| ------------------- | ---------------------------- |
+| `obstacle_detected` | Obstacle encountered         |
+| `obstacle_removed`  | Obstacle cleared             |
+| `poi_reached`       | Point of interest reached    |
+| `load_collected`    | Load successfully collected  |
+| `load_disposed`     | Load successfully disposed   |
+| `reroute_required`  | New route computation needed |
+| `missing_load`      | Load not found               |
+
+
+C example:
+```C
+  // Server-Common Structures
+  typedef enum{
+    obstacle_detected = 10,
+    obstacle_removed =11,
+    poi_reached = 12,
+    load_collected = 13,
+    load_disposed = 14,
+    reroute_required = 15,
+    missing_load = 16
+  }FeedbackEvent_t;
+
+  typedef struct EventMsg_t{
+    FeedbackEvent_t event;
+    const char* details; 
+  } EventMsg_t;
+```
+---
+#### 3. `Property`
+Reply to get_property command.
+
+| Field           | Type   | Allowed Values                               |
+| --------------- | ------ | -------------------------------------------- |
+| `prop`          | enum   | see below (long list)                        |
+| `value`         | str    | current property value                       |
+
+Possible properties in the message:
+
+| Property                  | Type      | Allowed Values               |
+| ------------------------- | --------- | ---------------------------- |
+| `SPEED`                   | enum      | `slow`, `normal`, `fast`     |
+| `FEEDBACK`                | enum      | `silent`, `minimal`, `debug` |
+| `DEBUG`                   | enum      | `off`, `basic`, `full`       |
+| `NAVIGATION_TYPE`         | enum      | `manual`, `checkpoint`, `grid`, `free_move` |
+| `ROUTE_POLICY`            | enum      | `shortest`, `safest`, `fast`                |
+| `RADAR `                  | bit-bool  |  1 (`on`), 0(`off`)          |
+| `SCREEN `                 | bit-bool  |  1 (`on`), 0(`off`)          |
+| `OBSTACLE_CLEANER `       | bit-bool  |  ...                         |
+| `OBJECT_LOADER `          | bit-bool  |  ...                         |
+| `OBJECT_UNLOADER `        | bit-bool  |  ...                         |
+| `OBJECT_COMPACTER `       | bit-bool  |  1 (`on`), 0(`off`)          |
+
+C example:
+```C
+  // Server-Common Structures
+  typedef enum{
+    SPEED = 0,
+    FEEDBACK = 1,
+    DEBUG = 2,
+    NAVIGATION_TYPE = 3,
+    ROUTE_POLICY = 4,
+    RADAR = 5,
+    SCREEN = 6,
+    OBSTACLE_CLEANER = 10,  // range gap for future updates
+    OBJECT_LOADER = 11,
+    OBJECT_UNLOADER = 12,
+    OBJECT_COMPACTER = 13
+  }PropertyFields;
+  typedef struct PropertyMsg_t{
+    PropertyFields prop;
+    void *value;  // value type depends on what's the property
+  } PropertyMsg_t;
+```
+---
+
+#### 4. `Feedback`
 Response to a previously issued command.
 | Field           | Type   | Allowed Values                               |
 | --------------- | ------ | -------------------------------------------- |
@@ -409,46 +495,7 @@ The total structure sent as serialized JSON will be something like:
 
 ---
 
-#### 3. `Event`
-Asynchronous runtime event.
-
-| Field           | Type   | Allowed Values                               |
-| --------------- | ------ | -------------------------------------------- |
-| `event`         | enum   | see below (long list)                        |
-| `details`       | string | Optional description of the event            |
-
-| Event               | Description                  |
-| ------------------- | ---------------------------- |
-| `obstacle_detected` | Obstacle encountered         |
-| `obstacle_removed`  | Obstacle cleared             |
-| `poi_reached`       | Point of interest reached    |
-| `load_collected`    | Load successfully collected  |
-| `load_disposed`     | Load successfully disposed   |
-| `reroute_required`  | New route computation needed |
-| `missing_load`      | Load not found               |
-
-
-C example:
-```C
-  // Server-Common Structures
-  typedef enum{
-    obstacle_detected = 10,
-    obstacle_removed =11,
-    poi_reached = 12,
-    load_collected = 13,
-    load_disposed = 14,
-    reroute_required = 15,
-    missing_load = 16
-  }FeedbackEvent_t;
-
-  typedef struct EventMsg_t{
-    FeedbackEvent_t event;
-    const char* details; 
-  } EventMsg_t;
-```
----
-
-#### 4. `Debug`
+#### 5. `Debug`
 All possible messages of the internal state like low level error or warnings or simple informations
 like command execution steps.
 These messages will not be checked from the code but only printed in the UI.
@@ -468,7 +515,7 @@ C example:
 
 ---
 
-#### 5. `Error`
+#### 6. `Error`
 Both unrecoverable and recoverable failure.
 
 | Field           | Type   | Allowed Values                  |

@@ -85,9 +85,24 @@ All UDP messages have to conform to the following envelope structure.
 
 ### Allowed `message_type`
 
-| Value     | Description                                   |
-| --------- | --------------------------------------------- |
-| `command` | Control instruction to be executed by the MCU |
+| Field     | Allowed values                                                                |
+| --------- | ----------------------------------------------------------------------------- |
+| `command` | `get_property`,`set_property`,`motor_control`,`move`,`emergency_stop`,`reset` |
+
+
+C example:
+```C
+  // Server-Common Structures
+  typedef enum
+  {
+    GET_PROPERTY = 0
+    SET_PROPERTY = 1
+    MOTOR_CONTROL = 2 // used to manually drive the car 
+    MOVE = 3  // for autonomous movements with POIs
+    EMERGENCY_STOP = 4
+    RESET = 5
+  }CommandType;
+```
 
 ---
 
@@ -157,6 +172,73 @@ Note: can activate multiple motors at the same time, the end of the list will be
 If the list is empty the intended action is to move the robot as a normal car.
 The directions left, right are meant to be rotations only (on spot rotation)
 
+
+Example of JSON messages coming from server:
+
+Forward motion:
+```json
+  {
+    "protocol": "robot-net/1.0",
+    "message_type": 0,
+    "request_id": "91",
+    "mode": 0,
+    "timestamp": "2026-02-09T14:28:33.468733+00:00",  // Timestamp as ISO 8601 format
+    "payload": {
+      "command": 2,
+      "motor_id": [
+        -1                          // no explicit motor to drive (-1 is end_mot) -> drive as a car!
+      ],
+      "direction": 0,
+      "speed": 100,
+      "angle": 0,
+      "duration_ms": 0
+    }
+  }
+```
+
+Left motion:
+```json
+  {
+    "protocol": "robot-net/1.0",
+    "message_type": 0,
+    "request_id": "89",
+    "mode": 0,
+    "timestamp": "2026-02-09T14:30:33.468733+00:00",
+    "payload": {
+      "command": 2,
+      "motor_id": [
+        -1
+      ],
+      "direction": 2,
+      "speed": 100,
+      "angle": 0,
+      "duration_ms": 0
+    }
+  }
+```
+
+Stop motors:
+```json
+  {
+    "protocol": "robot-net/1.0",
+    "message_type": 0,
+    "request_id": "ed",
+    "mode": 0,
+    "timestamp": "2026-02-09T14:32:33.468733+00:00",
+    "payload": {
+      "command": 2,
+      "motor_id": [
+        -1
+      ],
+      "direction": 4,
+      "speed": 100,
+      "angle": 0,
+      "duration_ms": 0
+    }
+  }
+```
+
+
 C example:
 ```C
   // Server-Common Structures
@@ -195,7 +277,7 @@ Runtime property update.
 
 | Field                     | Type  | Allowed Values               |
 | ------------------------- | ----- | ---------------------------- |
-| `prop`                    | str   | `speed_level`,`feedback_level`,`debug_level`,`obstacle_cleaner`, `object_unloader`, `object_compacter`, `object_loader` |
+| `prop`                    | str   | `speed_level`,`feedback_level`,`debug_level`,`obstacle_cleaner`, `object_unloader`, ... |
 | `new_value`               | str   | see list below |
 
 Runtime possible properties updates.
@@ -207,14 +289,51 @@ Runtime possible properties updates.
 | `DEBUG`                   | enum      | `off`, `basic`, `full`       |
 | `NAVIGATION_TYPE`         | enum      | `manual`, `checkpoint`, `grid`, `free_move` |
 | `ROUTE_POLICY`            | enum      | `shortest`, `safest`, `fast`                |
-| `RADAR `                  | bit-bool  |  1 (`on`), 0(`off`)          |
-| `SCREEN `                 | bit-bool  |  1 (`on`), 0(`off`)          |
+| `RADAR`                   | bit-bool  |  1 (`on`), 0(`off`)          |
+| `SCREEN`                  | bit-bool  |  1 (`on`), 0(`off`)          |
+| `LIGHTS`                  | bit-bool  |  1 (`on`), 0(`off`)          |
+| `HORN`                    | bit-bool  |  1 (`on`), 0(`off`)          |
 | `OBSTACLE_CLEANER `       | bit-bool  |  ...                         |
 | `OBJECT_LOADER `          | bit-bool  |  ...                         |
 | `OBJECT_UNLOADER `        | bit-bool  |  ...                         |
 | `OBJECT_COMPACTER `       | bit-bool  |  1 (`on`), 0(`off`)          |
 
 
+
+
+Example of JSON messages coming from server:
+
+Setting property Speed to value 77:
+```json
+  {
+    "protocol": "robot-net/1.0",
+    "message_type": 0,
+    "request_id": "91",
+    "mode": 0,
+    "timestamp": "2026-02-09T14:32:48.191140+00:00",
+    "payload": {
+      "command": 1,
+      "prop": 0,
+      "new_value": 77
+    }
+  }
+```
+
+Turning off the screen:
+```json
+  {
+    "protocol": "robot-net/1.0",
+    "message_type": 0,
+    "request_id": "b8",
+    "mode": 0,
+    "timestamp": "2026-02-09T14:33:58.973698+00:00",
+    "payload": {
+      "command": 1,
+      "prop": 6,
+      "new_value": 0
+    }
+  }
+```
 
 C example:
 ```C
@@ -227,6 +346,8 @@ C example:
     ROUTE_POLICY = 4,
     RADAR = 5,
     SCREEN = 6,
+    LIGHTS = 7,
+    HORN = 8,
     OBSTACLE_CLEANER = 10,  // range gap for future updates
     OBJECT_LOADER = 11,
     OBJECT_UNLOADER = 12,
@@ -247,9 +368,27 @@ Get runtime property value.
 
 | Field                     | Type  | Allowed Values               |
 | ------------------------- | ----- | ---------------------------- |
-| `prop`                    | str   | `speed_level`,`feedback_level`,`debug_level`,`obstacle_cleaner`, `object_unloader`, `object_compacter`, `object_loader` |
+| `prop`                    | str   | `speed_level`,`feedback_level`,`debug_level`,`obstacle_cleaner`, `object_unloader`, ... |
 
 The expected value (server side) is from the table above (in set_property description)
+
+Server message to check current properties value:
+
+Check if the screen is on:
+```json
+  {
+    "protocol": "robot-net/1.0",
+    "message_type": 0,
+    "request_id": "c9",
+    "mode": 0,
+    "timestamp": "2026-02-09T14:35:58.973698+00:00",
+    "payload": {
+      "command": 0,
+      "prop": 6,
+    }
+  }
+```
+
 
 C example:
 ```C
@@ -262,7 +401,9 @@ C example:
     ROUTE_POLICY = 4,
     RADAR = 5,
     SCREEN = 6,
-    OBSTACLE_CLEANER = 10,  // range gap for future updates
+    LIGHTS = 7,
+    HORN = 8,
+    OBSTACLE_CLEANER = 10,
     OBJECT_LOADER = 11,
     OBJECT_UNLOADER = 12,
     OBJECT_COMPACTER = 13
@@ -288,6 +429,22 @@ Immediate safety command.
 | Persistence | Remains active until reset         |
 > Generates `CommandFeedback` to confirm stop action
 
+
+Server message to Stop all the functionalities:
+```json
+  {
+    "protocol": "robot-net/1.0",
+    "message_type": 0,
+    "request_id": "6d",
+    "mode": 0,
+    "timestamp": "2026-02-09T14:40:58.584303+00:00",
+    "payload": {
+      "command": 4,
+      "stop": "stop"
+    }
+  }
+```
+
 C example:
 ```C
   typedef struct EmergencyStopPayload
@@ -311,6 +468,20 @@ Reset the emergency stop or reset the board to the initial state (according to i
 | idle/busy      | Reset board | Delete pending request                    |
 > Generates `CommandFeedback` in any case
 
+Server message to reset the status or the board:
+```json
+  {
+    "protocol": "robot-net/1.0",
+    "message_type": 0,
+    "request_id": "8f",
+    "mode": 0,
+    "timestamp": "2026-02-09T14:42:58.584303+00:00",
+    "payload": {
+      "command": 5,
+      "reset": "reset"
+    }
+  }
+```
 
 C example:
 ```C

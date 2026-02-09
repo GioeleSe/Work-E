@@ -154,11 +154,11 @@ function set_property(feature, action) {
             break;
         case "lights":
             msg.cmd = "lights";
-            msg.argc = action?'ON':'OFF';
+            msg.argc = action?1:0;
             break;
         case "horn":
             msg.cmd = "horn";
-            msg.argc = action;
+            msg.argc = Number(action);
             break;
         default:
             msg = null;

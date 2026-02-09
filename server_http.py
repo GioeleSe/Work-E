@@ -4,66 +4,68 @@ import threading
 from enum import Enum
 import logging
 logger = logging.getLogger(__name__)
-logging.basicConfig(filename=f'server.log', encoding='utf-8', level=logging.DEBUG)
+
+class ConfigProperty(Enum):
+    SPEED = 0
+    FEEDBACK = 1
+    DEBUG = 2
+    NAVIGATION_TYPE = 3
+    ROUTE_POLICY = 4
+    RADAR = 5
+    SCREEN = 6
+    LIGHTS = 7
+    HORN = 8
+    OBSTACLE_CLEANER = 10
+    OBJECT_LOADER = 11
+    OBJECT_UNLOADER = 12
+    OBJECT_COMPACTER = 13
+
+    @staticmethod
+    def from_str(value):
+        try:
+            return ConfigProperty[value.upper()]
+        except KeyError:
+            raise ValueError
 
 class DestinationRobot(Enum):
-    ERR = -2,
-    NONE = -1,
-    ALL = 0,
-    ROBOT1 = 1,
-    ROBOT2 = 2,
-    ROBOT3 = 3,
+    ERR = -2
+    NONE = -1
+    ALL = 0
+    ROBOT1 = 1
+    ROBOT2 = 2
+    ROBOT3 = 3
     ROBOT4 = 4
 
-
-    @staticmethod
-    def from_int(value: int | str):
+    @classmethod
+    def from_int(cls, value: int | str):
         try:
-            value = int(value)
-        except:
-            return DestinationRobot.ERR
+            return cls(int(value))
+        except (ValueError, TypeError):
+            return cls.ERR
 
-        if value == -2:
-            return DestinationRobot.ERR
-        elif value == -1:
-            return DestinationRobot.NONE
-        elif value == 0:
-            return DestinationRobot.ALL
-        elif value == 1:
-            return DestinationRobot.ROBOT1
-        elif value == 2:
-            return DestinationRobot.ROBOT2
-        elif value == 3:
-            return DestinationRobot.ROBOT3
-        elif value == 4:
-            return DestinationRobot.ROBOT4
-        else:
-            return DestinationRobot.ERR
-
-    @staticmethod
-    def from_str(value: str):
-        if value == "ERR":
-            return DestinationRobot.ERR
-        elif value == "NONE":
-            return DestinationRobot.NONE
-        elif value == "ALL":
-            return DestinationRobot.ALL
-        elif value == "ROBOT1":
-            return DestinationRobot.ROBOT1
-        elif value == "ROBOT2":
-            return DestinationRobot.ROBOT2
-        elif value == "ROBOT3":
-            return DestinationRobot.ROBOT3
-        elif value == "ROBOT4":
-            return DestinationRobot.ROBOT4
-        else:
-            return DestinationRobot.ERR
+    @classmethod
+    def from_str(cls, value: str):
+        try:
+            return cls[value.upper()]
+        except (KeyError, AttributeError):
+            return cls.ERR
 
     def __repr__(self):
         return "<%s.%s>" % (self.__class__.__name__, self._name_)
 
+class Direction(Enum):
+    FORWARD = 0
+    BACKWARD = 1
+    LEFT = 2
+    RIGHT = 3
+    STOP = 4
 
-
+    @staticmethod
+    def from_str(value):
+        try:
+            return Direction[value.upper()]
+        except KeyError:
+            raise ValueError
 
 class HTTPServer:
     def __init__(
@@ -191,6 +193,7 @@ class HTTPServer:
                     check =True
         if check:
             self.destination_robot = DestinationRobot.from_int(data.get("argc"))
+            logger.warning(f"setting destination_robot to {self.destination_robot}")
             logger.debug(f"Changed destination robot to {self.destination_robot}")
         else:
             logger.debug(f"Invalid control settings message: {data}")
@@ -198,18 +201,20 @@ class HTTPServer:
     def _default_on_command(self, data):
         logger.debug(f"Command message:{data}")
         if data.get("mode", 'def') not in ["manual" , "auto"]:
-            logger.debug(f"Invalid command mode: {data.get("mode", 'Not defined')}")
+            logger.debug(f"Invalid command mode: {data.get('mode', 'Not defined')}")
         else:
             if data.get("cmd", 'def') == 'stop':
                 # plain stop function (stop here -> full stop)
-                logger.debug(f"Calling send stop UDP handler")
                 self.udp_server.send_stop(destination=self.destination_robot)
 
+            elif data.get("cmd", 'def') == 'reset':
+                self.udp_server.send_reset(destination=self.destination_robot)
+
             elif data.get("cmd", 'def') == 'drive':
-                if data.get("argc", 'def') in ['forward', 'reverse', 'left', 'right' , 'stop']:
-                    # correct manual drive command (stop here -> stop driving)
-                    logger.debug(f"Calling send drive UDP handler")
-                    self.udp_server.send_drive(destination=self.destination_robot, direction=data.get("argc"))
+                if data.get("argc", 'def') in ['forward', 'reverse', 'left', 'right' , 'stop']: # stop here -> motor stop
+                    # correct move command
+                    direction = Direction.from_str(data.get("argc"))
+                    self.udp_server.send_motor_control(destination=self.destination_robot, motor_id=[], direction=direction, angle=0)
                 else:
                     logger.debug(f"Invalid drive command: {data}")
             else:
@@ -218,14 +223,14 @@ class HTTPServer:
     def _default_on_set_property(self, data):
         logger.debug(f"Property set message: {data}")
         check = False
+        argc = None
         if data.get("cmd", 'def') in ['speed', 'lights', 'horn']:
-            tmp_argc = data.get("argc", 'def')
-            if tmp_argc in range(0,101) or tmp_argc in ['ON', 'OFF', 'PLAY', 'STOP']:
-                # correct set property message
+            argc = data.get("argc", 'def')
+            if argc in range(0,101):
                 check = True
         if check:
-            logger.debug(f"Calling set property UDP handler")
-            self.udp_server.send_set_property(destination=self.destination_robot, property=data.get("cmd"), value=data.get("argc"))
+            prop = ConfigProperty.from_str(data.get("cmd"))
+            self.udp_server.send_set_property(destination=self.destination_robot, prop=prop, value=argc)
         else:
             logger.debug(f"Invalid set property message: {data}")
 
@@ -237,7 +242,6 @@ class HTTPServer:
             check = True
 
         if check:
-            logger.debug(f"Calling get property UDP handler")
-            self.udp_server.send_get_property(destination=self.destination_robot, property=data.get("cmd"))
+            self.udp_server.send_get_property(destination=self.destination_robot, prop=data.get("cmd"))
         else:
             logger.debug(f"Invalid get property message: {data}")

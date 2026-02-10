@@ -40,16 +40,16 @@ void loop()
 void setupMotors()
 {
     // Set all motor control pins to OUTPUT
-    pinMode(MOTOR_A1_PIN, OUTPUT);
-    pinMode(MOTOR_A2_PIN, OUTPUT);
-    pinMode(MOTOR_B1_PIN, OUTPUT);
-    pinMode(MOTOR_B2_PIN, OUTPUT);
+    pinMode(MOTOR_1A_PIN, OUTPUT);
+    pinMode(MOTOR_1B_PIN, OUTPUT);
+    pinMode(MOTOR_2A_PIN, OUTPUT);
+    pinMode(MOTOR_2B_PIN, OUTPUT);
 
     // Initial state: motors are turned off
-    digitalWrite(MOTOR_A1_PIN, LOW);
-    digitalWrite(MOTOR_A2_PIN, LOW);
-    digitalWrite(MOTOR_B1_PIN, LOW);
-    digitalWrite(MOTOR_B2_PIN, LOW);
+    digitalWrite(MOTOR_1A_PIN, LOW);
+    digitalWrite(MOTOR_1B_PIN, LOW);
+    digitalWrite(MOTOR_2A_PIN, LOW);
+    digitalWrite(MOTOR_2B_PIN, LOW);
 }
 
 void setupHeartbeatTimer()
@@ -65,9 +65,9 @@ void setupWiFi()
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     
-    Serial.print("Connecting to WiFi");
+    Serial.println("Connecting to WiFi");
     Serial.print("SSID: ");
-    Serial.print(WIFI_SSID);
+    Serial.println(WIFI_SSID);
     while (WiFi.status() != WL_CONNECTED)
     {
         delay(500);

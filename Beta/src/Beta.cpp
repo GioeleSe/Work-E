@@ -34,33 +34,34 @@ void move(int dutyCycle, Direction dir)
 
     //? if case con uno switch dentro? huh???
 
-    switch(dir){
-        FORWARD:
-            spinClockwise(MOTOR_A1_PIN, MOTOR_A2_PIN, speed);
-            spinClockwise(MOTOR_B1_PIN, MOTOR_B2_PIN, speed);
-            self.moving = true;    
-            break;
-        BACKWARD:
-            spinAntiClockwise(MOTOR_A1_PIN, MOTOR_A2_PIN, speed);
-            spinAntiClockwise(MOTOR_B1_PIN, MOTOR_B2_PIN, speed);
-            self.moving = true;    
-            break;
-        LEFT:
-            //todo turn()
-            self.moving = true;    
-            break;
-        RIGHT:
-            //todo turn()
-            self.moving = true;    
-            break;
-        STOP:
-            digitalWrite(ULT_PIN, LOW);
-            //stop();
-            break;
-        default:
-            //! ERROR
-            //! handle it NOW!!
-            break;
+    switch (dir)
+    {
+    FORWARD:
+        spinClockwise(MOTOR_1A_PIN, MOTOR_1B_PIN, speed);
+        spinClockwise(MOTOR_2B_PIN, MOTOR_2B_PIN, speed);
+        // self.moving = true;
+        break;
+    BACKWARD:
+        spinAntiClockwise(MOTOR_1A_PIN, MOTOR_1B_PIN, speed);
+        spinAntiClockwise(MOTOR_2B_PIN, MOTOR_2B_PIN, speed);
+        // self.moving = true;
+        break;
+    LEFT:
+        // todo turn()
+        //  self.moving = true;
+        break;
+    RIGHT:
+        // todo turn()
+        //  self.moving = true;
+        break;
+    STOP:
+        digitalWrite(ULT_PIN, LOW);
+        // stop();
+        break;
+    default:
+        //! ERROR
+        //! handle it NOW!!
+        break;
     }
 }
 
@@ -82,10 +83,10 @@ void spinAntiClockwise(int MOTOR_PIN1, int MOTOR_PIN2, int speed)
 //? set low power mode for motors -> here or in main?
 void stop()
 {
-    analogWrite(MOTOR_A1_PIN, 0);
-    analogWrite(MOTOR_A2_PIN, 0);
-    analogWrite(MOTOR_B1_PIN, 0);
-    analogWrite(MOTOR_B2_PIN, 0);
+    analogWrite(MOTOR_1A_PIN, 0);
+    analogWrite(MOTOR_1B_PIN, 0);
+    analogWrite(MOTOR_2A_PIN, 0);
+    analogWrite(MOTOR_2B_PIN, 0);
 
-    self.moving = false;
+    // self.moving = false;
 }

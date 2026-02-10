@@ -1,13 +1,4 @@
 #include "UDP_Client.h"
-#include "Beta.h"
-
-enum MessageType
-{
-    HEARTBEAT,
-    FEEDBACK,
-    EVENT,
-    ERROR
-};
 
 AsyncUDP clientUDP;
 
@@ -15,9 +6,9 @@ AsyncUDP clientUDP;
 
 void connectToServer()
 {
-    Serial.println("Connecting to server ");
-    Serial.println(SERVER_IP);
-    Serial.println(":");
+    Serial.print("Connecting to server ");
+    Serial.print(SERVER_IP);
+    Serial.print(":");
     Serial.println(SERVER_PORT);
 
     if (clientUDP.connect(SERVER_IP, SERVER_PORT))
@@ -27,22 +18,22 @@ void connectToServer()
     else
     {
         Serial.println("UDP connection failed :-(");
-        Serial.println("Error code ");
+        Serial.print("Error code ");
         Serial.println(clientUDP.lastErr());
-        
+
         Serial.println("Retrying connection in 2 seconds");
         delay(2000);
         connectToServer();
     }
 }
 
-
 /// Serialize and send message to server
 void sendMessage(JsonDocument message)
 {
+    //! enclose message in envelope structure
     String jsonString;
     serializeJson(message, jsonString);
-    
+
     // Send data to server
     clientUDP.write((uint8_t *)jsonString.c_str(), jsonString.length());
 }
@@ -52,7 +43,7 @@ void sendMessage(JsonDocument message)
 JsonDocument heartbeatMessage()
 {
     JsonDocument doc;
-    
+
     doc["state"] = "IDLE"; // IDLE | DISCONNECTED | BUSY | ERROR
     doc["rssi"] = WiFi.RSSI();
     return doc;
@@ -61,36 +52,36 @@ JsonDocument heartbeatMessage()
 JsonDocument feedbackMessage()
 {
     JsonDocument doc;
-    
+
     doc["status"] = "PENDING"; // SUCCESS | FAILURE | PENDING
     // todo OPTIONAL: error_code, error_message
-    
+
     return doc;
 }
 
 JsonDocument eventMessage()
 {
     JsonDocument doc;
-    
+
     doc["obstacle_detected"] = 0;
     doc["poi_recahed"] = 0;
     doc["load_collected"] = 0;
     doc["load_disposed"] = 0;
     doc["reroute_required"] = 0;
-    
+
     return doc;
 }
 
 JsonDocument errorMessage()
 {
     JsonDocument doc;
-    
+
     doc["severity"] = "LOW"; // LOW | MID | HIGH
     // todo OPTIONAL: error_code, error_message
-    
+
     return doc;
 }
-   
+
 void checkConnection()
 {
     // Check if connection is still active

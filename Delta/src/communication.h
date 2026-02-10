@@ -183,7 +183,6 @@ typedef enum{
 
 void initializeWiFi();
 void startUDPServer();
-void commsBegin(const char* ssid, const char* pass);
 void commsLoop();
 
 void handlePacket(int packetSize);

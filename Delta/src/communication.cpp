@@ -40,17 +40,6 @@ static bool seenRequest(uint16_t id){
 }
 
 
-void commsBegin(const char* ssid, const char* pass){
-  WiFi.begin(ssid, pass);
-  while (WiFi.status() != WL_CONNECTED) delay(250);
-  bool success = udp.listen(LOCAL_PORT);
-  if(success) {
-    udp.onPacket([](AsyncUDPPacket packet){
-      handlePacket(packet.length());
-    });
-  }
-}
-
 void initializeWiFi(){
   // Initialize WiFi
   WiFi.mode(WIFI_STA);
@@ -71,7 +60,7 @@ void initializeWiFi(){
   Serial.print(WiFi.RSSI());
   Serial.println(" dBm");
 }
-void initializeUDP(){
+void startUDPServer(){
   bool success = udp.listen(LOCAL_PORT);
   if(success) {
     Serial.print("UDP server listening on port ");

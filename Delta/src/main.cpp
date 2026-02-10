@@ -1,15 +1,23 @@
 #include <Arduino.h>
+#include "config.h"
+#include "communication.h"
+#include <cstring>
+#include <WiFi.h>
+#include <AsyncUDP.h>
 
-// put function declarations here:
-int myFunction(int, int);
+AsyncUDP udp;
+IPAddress serverIP; 
 
 void setup() {
-  // put your setup code here, to run once:
-  int result = myFunction(2, 3);
+    Serial.begin(115200);
+  Serial.println("Starting ESP32 AsyncUDP Server with listen() method...");
+  initializeWiFi();
+  startUDPServer();
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
+  commsLoop();
 }
 
 // put function definitions here:

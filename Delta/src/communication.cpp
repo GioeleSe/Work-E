@@ -21,14 +21,13 @@
 #include <ArduinoJson.h>
 #include <cstring>
 #include <WiFi.h>
-#include <WiFiUdp.h>
+#include <AsyncUDP.h>
 
-static WiFiUDP udp;
+
+static AsyncUDP udp;
 static IPAddress backendIp;
 static uint16_t backendPort = 0;
-static const uint16_t LOCAL_PORT = 8000;
-static const char* PROTOCOL_ID = "robot-net/1.0";
-static uint8_t robot_id = 3; // Delta
+
 
 // simple dedupe: store last seen request ids (circular buffer)
 static const int MAX_RECENT = 16;
@@ -44,15 +43,51 @@ static bool seenRequest(uint16_t id){
 void commsBegin(const char* ssid, const char* pass){
   WiFi.begin(ssid, pass);
   while (WiFi.status() != WL_CONNECTED) delay(250);
-  udp.begin(LOCAL_PORT);
+  bool success = udp.listen(LOCAL_PORT);
+  if(success) {
+    udp.onPacket([](AsyncUDPPacket packet){
+      handlePacket(packet.length());
+    });
+  }
+}
+
+void initializeWiFi(){
+  // Initialize WiFi
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  
+  Serial.print("Connecting to WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.print(".");
+  }
+  Serial.println();
+  Serial.println("WiFi connected successfully!");
+  
+  serverIP = WiFi.localIP();
+  Serial.print("Server IP address: ");
+  Serial.println(serverIP);
+  Serial.print("Signal strength: ");
+  Serial.print(WiFi.RSSI());
+  Serial.println(" dBm");
+}
+void initializeUDP(){
+  bool success = udp.listen(LOCAL_PORT);
+  if(success) {
+    Serial.print("UDP server listening on port ");
+    Serial.println(LOCAL_PORT);
+    udp.onPacket([](AsyncUDPPacket packet){
+      handlePacket(packet.length());
+    });
+  } else {
+    Serial.println("Failed to start UDP server");
+  }
 }
 
 static void sendJson(const IPAddress& ip, uint16_t port, const JsonDocument& doc){
   char buf[512];
   size_t n = serializeJson(doc, buf, sizeof(buf));
-  udp.beginPacket(ip, port);
-  udp.write((const uint8_t*)buf, n);
-  udp.endPacket();
+  //send
 }
 
 static void sendFeedbackSuccess(uint16_t req_id, uint16_t mode_bit){
@@ -73,6 +108,7 @@ void handlePacket(int len){
   if(r<=0) return;
   buf[r]=0;
   StaticJsonDocument<1024> doc;
+  //
   auto err = deserializeJson(doc, (char*)buf);
   if(err) return;
   const char* proto = doc["protocol"];
@@ -142,10 +178,6 @@ void handlePacket(int len){
 }
 
 void commsLoop(){
-  int packetSize = udp.parsePacket();
-  if(packetSize){
-    handlePacket(packetSize);
-  }
   // periodic heartbeat every 2 seconds
   static uint32_t lastHB = 0;
   if(millis() - lastHB > 2000){

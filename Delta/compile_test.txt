@@ -1,0 +1,3 @@
+g++ -std=c++17 test/unit_parser_test.cpp -I"C:\Users\Jacob\AppData\Local\Microsoft\Windows\FileHistory\Data\1191\C\Users\Jacob\Desktop\Embedded\Work-E\Delta\.pio\libdeps\esp32dev\ArduinoJson\src" -o test_parser.exe
+
+./test_parser.exe

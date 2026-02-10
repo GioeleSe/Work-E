@@ -95,12 +95,12 @@ C example:
   // Server-Common Structures
   typedef enum
   {
-    GET_PROPERTY = 0
-    SET_PROPERTY = 1
-    MOTOR_CONTROL = 2 // used to manually drive the car 
-    MOVE = 3  // for autonomous movements with POIs
-    EMERGENCY_STOP = 4
-    RESET = 5
+    CommandType_GET_PROPERTY = 0
+    CommandType_SET_PROPERTY = 1
+    CommandType_MOTOR_CONTROL = 2 // used to manually drive the car 
+    CommandType_MOVE = 3  // for autonomous movements with POIs
+    CommandType_EMERGENCY_STOP = 4
+    CommandType_RESET = 5
   }CommandType;
 ```
 
@@ -130,20 +130,20 @@ C example:
   // Server-Common Structures
   typedef enum
   {
-    HOME = 0, // starting point
-    LOAD = 1, // position of the load to collect 
-    BASE = 2  // load destination
+    DestinationCheckpoint_HOME = 0, // starting point
+    DestinationCheckpoint_LOAD = 1, // position of the load to collect 
+    DestinationCheckpoint_BASE = 2  // load destination
   } DestinationCheckpoint;
   typedef enum {
-    MANUAL = 0, // manual GUI, robot as dummy collection of motors
-    CHECKPOINT = 1, //home-load-target navigation
-    GRID = 2, // prefixed grid pattern (90° rotations only at turning points, like a chess board)
-    FREE_MOVE = 3 // no target, no grid, just an happy robot going around (for future extensions obv)
+    NavigationType_MANUAL = 0, // manual GUI, robot as dummy collection of motors
+    NavigationType_CHECKPOINT = 1, //home-load-target navigation
+    NavigationType_GRID = 2, // prefixed grid pattern (90° rotations only at turning points, like a chess board)
+    NavigationType_FREE_MOVE = 3 // no target, no grid, just an happy robot going around (for future extensions obv)
   } NavigationType;
   typedef enum {
-    SHORTEST = 0,
-    SAFEST = 1,
-    FAST = 2
+    RoutePolicy_SHORTEST = 0,
+    RoutePolicy_SAFEST = 1,
+    RoutePolicy_FAST = 2
   } RoutePolicy;
   // Payload of the incoming message:
   typedef struct MovePayload{
@@ -243,21 +243,21 @@ C example:
 ```C
   // Server-Common Structures
   typedef enum{
-      END_MOT = -1, // end of motor list
-      RES = 0,    // reserved for now
-      MOT1 = 1,   // left car movement motor
-      MOT2 = 2,   // right car movement motor
-      MOT3 = 3,   // additional motors
-      MOT4 = 4,   // additional motors
-      MOT5 = 5,   // ...
-      MOT6 = 6    // ...
+      Motors_END_MOT = -1, // end of motor list
+      Motors_RES = 0,    // reserved for now
+      Motors_MOT1 = 1,   // left car movement motor
+      Motors_MOT2 = 2,   // right car movement motor
+      Motors_MOT3 = 3,   // additional motors
+      Motors_MOT4 = 4,   // additional motors
+      Motors_MOT5 = 5,   // ...
+      Motors_MOT6 = 6    // ...
   } Motors;
   typedef enum{
-    FORWARD = 0,
-    BACKWARD = 1,
-    LEFT = 2,
-    RIGHT = 3,
-    STOP = 4 // only for motors, it's a simple way to stop them NOT the emergency one
+    Direction_FORWARD = 0,
+    Direction_BACKWARD = 1,
+    Direction_LEFT = 2,
+    Direction_RIGHT = 3,
+    Direction_STOP = 4 // only for motors, it's a simple way to stop them NOT the emergency one
   } Direction;
   // Payload of the incoming message:
   typedef struct MotorControlPayload{
@@ -339,19 +339,19 @@ C example:
 ```C
   // Server-Common Structures
   typedef enum{
-    SPEED = 0,
-    FEEDBACK = 1,
-    DEBUG = 2,
-    NAVIGATION_TYPE = 3,
-    ROUTE_POLICY = 4,
-    RADAR = 5,
-    SCREEN = 6,
-    LIGHTS = 7,
-    HORN = 8,
-    OBSTACLE_CLEANER = 10,  // range gap for future updates
-    OBJECT_LOADER = 11,
-    OBJECT_UNLOADER = 12,
-    OBJECT_COMPACTER = 13
+    PropertyFields_SPEED = 0,
+    PropertyFields_FEEDBACK = 1,
+    PropertyFields_DEBUG = 2,
+    PropertyFields_NAVIGATION_TYPE = 3,
+    PropertyFields_ROUTE_POLICY = 4,
+    PropertyFields_RADAR = 5,
+    PropertyFields_SCREEN = 6,
+    PropertyFields_LIGHTS = 7,
+    PropertyFields_HORN = 8,
+    PropertyFields_OBSTACLE_CLEANER = 10,  // range gap for future updates
+    PropertyFields_OBJECT_LOADER = 11,
+    PropertyFields_OBJECT_UNLOADER = 12,
+    PropertyFields_OBJECT_COMPACTER = 13
   }PropertyFields;
   typedef struct SetPropertyPayload
   {
@@ -393,25 +393,10 @@ Check if the screen is on:
 C example:
 ```C
   // Server-Common Structures
-  typedef enum{
-    SPEED = 0,
-    FEEDBACK = 1,
-    DEBUG = 2,
-    NAVIGATION_TYPE = 3,
-    ROUTE_POLICY = 4,
-    RADAR = 5,
-    SCREEN = 6,
-    LIGHTS = 7,
-    HORN = 8,
-    OBSTACLE_CLEANER = 10,
-    OBJECT_LOADER = 11,
-    OBJECT_UNLOADER = 12,
-    OBJECT_COMPACTER = 13
-  }ConfigFields;
-  typedef struct GetConfigPayload
+  typedef struct GetPropertyPayload
   {
-    ConfigFields prop; // expected one of the ConfigFields to return its value
-  } GetConfigPayload;
+    PropertyFields prop; // expected one of the ConfigFields to return its value
+  } GetPropertyPayload;
 ```
 
 ---
@@ -562,13 +547,13 @@ C example:
 ```C
   // Server-Common Structures
   typedef enum{
-    obstacle_detected = 10,
-    obstacle_removed =11,
-    poi_reached = 12,
-    load_collected = 13,
-    load_disposed = 14,
-    reroute_required = 15,
-    missing_load = 16
+    FeedbackEvent_t_obstacle_detected = 10,
+    FeedbackEvent_t_obstacle_removed =11,
+    FeedbackEvent_t_poi_reached = 12,
+    FeedbackEvent_t_load_collected = 13,
+    FeedbackEvent_t_load_disposed = 14,
+    FeedbackEvent_t_reroute_required = 15,
+    FeedbackEvent_t_missing_load = 16
   }FeedbackEvent_t;
 
   typedef struct EventMsg_t{
@@ -605,17 +590,19 @@ C example:
 ```C
   // Server-Common Structures
   typedef enum{
-    SPEED = 0,
-    FEEDBACK = 1,
-    DEBUG = 2,
-    NAVIGATION_TYPE = 3,
-    ROUTE_POLICY = 4,
-    RADAR = 5,
-    SCREEN = 6,
-    OBSTACLE_CLEANER = 10,  // range gap for future updates
-    OBJECT_LOADER = 11,
-    OBJECT_UNLOADER = 12,
-    OBJECT_COMPACTER = 13
+    PropertyFields_SPEED = 0,
+    PropertyFields_FEEDBACK = 1,
+    PropertyFields_DEBUG = 2,
+    PropertyFields_NAVIGATION_TYPE = 3,
+    PropertyFields_ROUTE_POLICY = 4,
+    PropertyFields_RADAR = 5,
+    PropertyFields_SCREEN = 6,
+    PropertyFields_LIGHTS = 7,
+    PropertyFields_HORN = 8,
+    PropertyFields_OBSTACLE_CLEANER = 10,  // range gap for future updates
+    PropertyFields_OBJECT_LOADER = 11,
+    PropertyFields_OBJECT_UNLOADER = 12,
+    PropertyFields_OBJECT_COMPACTER = 13
   }PropertyFields;
   typedef struct PropertyMsg_t{
     PropertyFields prop;
@@ -636,9 +623,9 @@ C example:
 ```C
   // Server-Common Structures
   typedef struct{
-    SUCCESS = 0,
-    FAILURE = 1,
-    PENDING = 2
+    ActionResult_SUCCESS = 0,
+    ActionResult_FAILURE = 1,
+    ActionResult_PENDING = 2
   }ActionResult;
   typedef int ErrorCode_t;
 
@@ -700,9 +687,9 @@ C example:
 ```C
   // Server-Common Structures
   typedef enum{
-    LOW = 0,
-    MID = 1,
-    HIGH = 2
+    ErrorSeverity_t_LOW = 0,
+    ErrorSeverity_t_MID = 1,
+    ErrorSeverity_t_HIGH = 2
   } ErrorSeverity_t;
 
   typedef struct ErrorMsg_t{

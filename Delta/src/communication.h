@@ -1,8 +1,10 @@
 #pragma once
-
 #include <Arduino.h>
 #include <ArduinoJson.h>
-
+#include <ESP8266WiFi.h>
+#include <ESPAsyncUDP.h>
+#include <cstring>
+//
 enum CommandType {
     MOVE,
     MOTOR_CONTROL,
@@ -77,7 +79,7 @@ enum RobotResponse {
   // Server-Common Structures
   typedef enum{
     SPEED = 0,
-    FEEDBACK = 1,
+    CONFIG_FEEDBACK = 1,
     DEBUG = 2,
     NAVIGATION_TYPE = 3,
     ROUTE_POLICY = 4,
@@ -95,20 +97,7 @@ enum RobotResponse {
   } SetConfigPayload;
 
 // for get config
-  // Server-Common Structures
-  typedef enum{
-    SPEED = 0,
-    FEEDBACK = 1,
-    DEBUG = 2,
-    NAVIGATION_TYPE = 3,
-    ROUTE_POLICY = 4,
-    RADAR = 5,
-    SCREEN = 6,
-    OBSTACLE_CLEANER = 10,  // range gap for future updates
-    OBJECT_LOADER = 11,
-    OBJECT_UNLOADER = 12,
-    OBJECT_COMPACTER = 13
-  }ConfigFields;
+  // the configfields are the same as set config
   typedef struct GetConfigPayload
   {
     ConfigFields prop; // expected one of the ConfigFields to return its value
@@ -131,7 +120,7 @@ enum RobotResponse {
 // for heartbeat 
 typedef enum{
     IDLE = 0,
-    BUSY = 1,
+    ROBOT_BUSY = 1,
     ERR = 2
 }RobotState;
 
@@ -141,7 +130,7 @@ typedef enum{
   typedef enum{
     SUCCESS = 0,
     FAILURE = 1,
-    PENDING = 2
+    ACTION_PENDING = 2
   }ActionResult;
   typedef int ErrorCode_t;
 
@@ -185,7 +174,7 @@ void initializeWiFi();
 void startUDPServer();
 void commsLoop();
 
-void handlePacket(int packetSize);
+void handlePacket(AsyncUDPPacket packet);
 void sendHeartbeat();
 void sendFeedback(uint16_t request_id, const JsonObject& payload, const char* status);
 void sendFeedbackSuccess(uint16_t request_id, uint16_t mode_bit);

@@ -2,12 +2,10 @@
 #include "config.h"
 #include "communication.h"
 #include <cstring>
-#include <WiFi.h>
-#include <AsyncUDP.h>
+#include <ESP8266WiFi.h>
+#include <ESPAsyncUDP.h>
 
-AsyncUDP udp;
-IPAddress serverIP; 
-
+#ifndef EXCLUDE_FROM_MOTOR_TEST
 void setup() {
     Serial.begin(115200);
   Serial.println("Starting ESP32 AsyncUDP Server with listen() method...");
@@ -18,6 +16,7 @@ void setup() {
 void loop() {
   commsLoop();
 }
+#endif
 
 // put function definitions here:
 int myFunction(int x, int y) {

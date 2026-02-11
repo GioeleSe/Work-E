@@ -24,12 +24,7 @@ Base station can send commands:
 #include "navigation.h"
 #include "motor_control.h"
 
-enum RobotState {
-    IDLE, // send heartbeats, receive commands
-    MOVING, // respond to movement commands
-    EXECUTING, // performing task e.g. lift block
-    ERROR, // something went wrong
-};
+
 
 RobotState current_state = IDLE;
 
@@ -37,17 +32,14 @@ void initMotors();
 
 //void initNavigation();
 
-
-
-
+#ifndef EXCLUDE_FROM_MOTOR_TEST
 void setup() {
     //init communication
-    void commsBegin( const char* ssid, const char* pass);
     sendHeartbeat();
     //init motors
     initMotors();
     //init navigation
-    initNavigation();
+   // initNavigation();
 
 }
 
@@ -61,8 +53,12 @@ void executeGetConfig(const GetConfigPayload& gcp){
   printf("Executing get config: prop=%d\n", gcp.prop);
   return;
 }
-
+void setRobotState(RobotState new_state){
+  current_state = new_state;
+  // optionally send event feedback on state change
+}
 const int COMMAND_QUEUE_SIZE = 10;
 CommandType commandQueue[COMMAND_QUEUE_SIZE];
 
 void commsLoop(); //calls handlePacket and sendHeartbeat
+#endif

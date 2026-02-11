@@ -9,3 +9,9 @@ in the development cycle.
 
 More information about PlatformIO Unit Testing:
 - https://docs.platformio.org/en/latest/advanced/unit-testing/index.html
+
+Motor control JSON test (on device)
+- Build `test/motor_control_test.cpp` with PlatformIO and upload to an ESP32 connected to motors.
+- The test parses JSON samples from `test/jsons_data.h` (derived from `test/jsons.txt`) and
+	calls `executeMotorControl()` for each `command == 2` payload.
+- Open Serial at 115200 and visually confirm motor movement.

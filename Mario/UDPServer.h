@@ -7,79 +7,79 @@
 // Server-Common Structures
 typedef enum MessageMode
 {
-    MANUAL = 0,
-    AUTO = 1
-} MessageMode;
+    MessageMode_MANUAL = 0,
+    MessageMode_AUTO = 1
+} MessageMode_t;
 typedef enum
 {
-    HOME = 0, // starting point
-    LOAD = 1, // position of the load to collect 
-    BASE = 2  // load destination
-} DestinationCheckpoint;
+    DestinationCheckpoint_HOME = 0, // starting point
+    DestinationCheckpoint_LOAD = 1, // position of the load to collect 
+    DestinationCheckpoint_BASE = 2  // load destination
+} DestinationCheckpoint_t;
 typedef enum
 {
-    MANUAL = 0,
-    CHECKPOINT = 1,
-    GRID = 2,
-    FREE_MOVE = 3
-} NavigationType;
+    NavigationType_MANUAL = 0,
+    NavigationType_CHECKPOINT = 1,
+    NavigationType_GRID = 2,
+    NavigationType_FREE_MOVE = 3
+} NavigationType_t;
 typedef enum
 {
-    SHORTEST = 0,
-    SAFEST = 1,
-    FAST = 2
-} RoutePolicy;
+    RoutePolicy_SHORTEST = 0,
+    RoutePolicy_SAFEST = 1,
+    RoutePolicy_FAST = 2
+} RoutePolicy_t;
 typedef enum
 {
-    FORWARD = 0,
-    BACKWARD = 1,
-    LEFT = 2,
-    RIGHT = 3,
-    STOP = 4
-} Direction;
+    Direction_FORWARD = 0,
+    Direction_BACKWARD = 1,
+    Direction_LEFT = 2,
+    Direction_RIGHT = 3,
+    Direction_STOP = 4
+} Direction_t;
 typedef enum
 {
-    SLOW = 0,   // reduced speed of all functionalities with possible forced idle cycles (mainly for debug)
-    NORMAL = 1,  // normal flow
-    FAST = 2    // faster decisions and functionalities (for future extensions)
-} SpeedLevel;
+    SpeedLevel_SLOW = 0,   // reduced speed of all functionalities with possible forced idle cycles (mainly for debug)
+    SpeedLevel_NORMAL = 1,  // normal flow
+    SpeedLevel_FAST = 2    // faster decisions and functionalities (for future extensions)
+} SpeedLevel_t;
 typedef enum
 {
-    OFF = 0,    // don't
-    BASIC = 1,  // warning messages only
-    FULL = 2    // debug all possible messages and events
-} DebugLevel;
+    DebugLevel_OFF = 0,    // don't
+    DebugLevel_BASIC = 1,  // warning messages only
+    DebugLevel_FULL = 2    // debug all possible messages and events
+} DebugLevel_t;
 typedef enum
 {
-    SILENT = 0, // basic feedback needed for server
-    MINIMAL = 1, // feedback messages with more details/info
-    DEBUG = 2   // send back to server a debug-level feedback
-} FeedbackLevel;
+    FeedbackLevel_SILENT = 0, // basic feedback needed for server
+    FeedbackLevel_MINIMAL = 1, // feedback messages with more details/info
+    FeedbackLevel_DEBUG = 2   // send back to server a debug-level feedback
+} FeedbackLevel_t;
 typedef enum
 {
-    END_MOT = -1, // end of motor list
-    RES = 0,      // reserved for now
-    MOT1 = 1,     // left car movement motor
-    MOT2 = 2,     // right car movement motor
-    MOT3 = 3,     // additional motors
-    MOT4 = 4,     // additional motors
-    MOT5 = 5,     // ...
-    MOT6 = 6      // ...
-} Motors;
+    Motors_END_MOT = -1, // end of motor list
+    Motors_RES = 0,      // reserved for now
+    Motors_MOT1 = 1,     // left car movement motor
+    Motors_MOT2 = 2,     // right car movement motor
+    Motors_MOT3 = 3,     // additional motors
+    Motors_MOT4 = 4,     // additional motors
+    Motors_MOT5 = 5,     // ...
+    Motors_MOT6 = 6      // ...
+} Motors_t;
 typedef enum
 {
-    SPEED = 0,
-    FEEDBACK = 1,
-    DEBUG = 2,
-    NAVIGATION_TYPE = 3,
-    ROUTE_POLICY = 4,
-    RADAR = 5,
-    SCREEN = 6,
-    OBSTACLE_CLEANER = 10, // range gap for future updates
-    OBJECT_LOADER = 11,
-    OBJECT_UNLOADER = 12,
-    OBJECT_COMPACTER = 13
-} ConfigFields;
+    ConfigFields_SPEED = 0,
+    ConfigFields_FEEDBACK = 1,
+    ConfigFields_DEBUG = 2,
+    ConfigFields_NAVIGATION_TYPE = 3,
+    ConfigFields_ROUTE_POLICY = 4,
+    ConfigFields_RADAR = 5,
+    ConfigFields_SCREEN = 6,
+    ConfigFields_OBSTACLE_CLEANER = 10, // range gap for future updates
+    ConfigFields_OBJECT_LOADER = 11,
+    ConfigFields_OBJECT_UNLOADER = 12,
+    ConfigFields_OBJECT_COMPACTER = 13
+} ConfigFields_t;
 // endof Server-Common Structures
 
 typedef const char *Fields_t[CMD_FIELDS_NUM];
@@ -89,35 +89,35 @@ typedef struct MovePayload
 {
     int destination_x;
     int destination_y;
-    DestinationCheckpoint destination_checkpoint;
-    NavigationType navigation_type;
-    RoutePolicy route_policy;
-} MovePayload;
+    DestinationCheckpoint_t destination_checkpoint;
+    NavigationType_t navigation_type;
+    RoutePolicy_t route_policy;
+} MovePayload_t;
 typedef struct MotorControlPayload
 {
-    Motors *motor_ids;   // can activate multiple motors at once, if the vector is empty the intended action is to drive it as a car
-    Direction direction; // can be LEFT or RIGHT only if motor_ids is empty, ignored otherwise
+    Motors_t *motor_ids;   // can activate multiple motors at once, if the vector is empty the intended action is to drive it as a car
+    Direction_t direction; // can be LEFT or RIGHT only if motor_ids is empty, ignored otherwise
     uint8_t speed;       // 0-100, basically the direct pwm ratio
     int angle;           // from -360 to +360, on spot rotation angle
     uint32_t duration;   // can be 0 or greater (0 -> keep running, otherwise set a timeout)
-} MotorControlPayload;
+} MotorControlPayload_t;
 typedef struct SetConfigPayload
 {
-    ConfigFields prop; // single prop from ConfigFields list
+    ConfigFields_t prop; // single prop from ConfigFields_t list
     void *new_value;   // new value type depends on what's the property
-} SetConfigPayload;
+} SetConfigPayload_t;
 typedef struct GetConfigPayload
 {
-    ConfigFields prop; // expected one of the ConfigFields to return its value
-} GetConfigPayload;
+    ConfigFields_t prop; // expected one of the ConfigFields_t to return its value
+} GetConfigPayload_t;
 typedef struct EmergencyStopPayload
 {
     const char *stop; // gotta simply match the "stop" keyword to stop the tasks currently running
-} EmergencyStopPayload;
+} EmergencyStopPayload_t;
 typedef struct ResetPayload
 {
     const char *reset; // gotta simply match the "reset" keyword to reset the board (idle/busy) or clear the error state (or clear the active emergency stop state)
-} ResetPayload;
+} ResetPayload_t;
 
 // start a local AsyncUDP server, will be listening for packets coming from everyone on the defined port
 // Incoming packets are serialized JSON structures, need to decode them and check for the correct fields presence

@@ -6,28 +6,28 @@
 
 
 typedef enum{
-    IDLE = 0,
-    BUSY = 1,
-    ERR = 2
+    RobotState_IDLE = 0,
+    RobotState_BUSY = 1,
+    RobotState_ERR = 2
 }RobotState_t;
 typedef enum{
-    SUCCESS = 0,
-    FAILURE = 1,
-    PENDING = 2
+    ActionResult_SUCCESS = 0,
+    ActionResult_FAILURE = 1,
+    ActionResult_PENDING = 2
 }ActionResult_t;
 typedef enum{
-    OBSTACLE_DETECTED = 10,
-    OBSTACLE_REMOVED = 11,
-    POI_REACHED = 12,
-    LOAD_COLLECTED = 13,
-    LOAD_DISPOSED = 14,
-    REROUTE_REQUIRED = 15,
-    MISSING_LOAD = 16
+    FeedbackEvent_OBSTACLE_DETECTED = 10,
+    FeedbackEvent_OBSTACLE_REMOVED = 11,
+    FeedbackEvent_POI_REACHED = 12,
+    FeedbackEvent_LOAD_COLLECTED = 13,
+    FeedbackEvent_LOAD_DISPOSED = 14,
+    FeedbackEvent_REROUTE_REQUIRED = 15,
+    FeedbackEvent_MISSING_LOAD = 16
 }FeedbackEvent_t;
 typedef enum{
-    LOW = 0,
-    MID = 1,
-    HIGH = 2
+    ErrorSeverity_LOW = 0,
+    ErrorSeverity_MID = 1,
+    ErrorSeverity_HIGH = 2
 } ErrorSeverity_t;
 
 typedef int ErrorCode_t;

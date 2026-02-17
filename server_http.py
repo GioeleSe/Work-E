@@ -107,8 +107,12 @@ class HTTPServer:
     # -------------------------
     def _register_routes(self):
         @self.app.route("/", methods=["GET"])
-        def root():
+        def default():
             return render_template("index.html")
+        
+        @self.app.route("/advanced", methods=["GET"])
+        def advanced():
+            return render_template("advanced_gui.html")
 
     # -------------------------
     # SocketIO handlers

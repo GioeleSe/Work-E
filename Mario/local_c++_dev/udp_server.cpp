@@ -101,62 +101,64 @@ udp_server_data_t* server_init(){
     udp_server_data.size_of_server_info = (socklen_t)sizeof(udp_server_data.server_info);
     server_socket_bind(udp_server_data.socket_fd, (struct sockaddr_in*)&udp_server_data.server_info, &udp_server_data.size_of_server_info);
 
-    sem_init(&udp_server_data.udp_server_buffer.buffer_messages_semaphore, 0, 1);
+    sem_init(&udp_server_data.udp_server_buffer.buffer_messages_mutex, 0, 1);
+    sem_init(&udp_server_data.udp_server_buffer.buffer_messages_counting_sem, 0, 0);
     udp_server_data.udp_server_buffer.buffer_max_size = BUFFER_SIZE;
     udp_server_data.udp_server_buffer.buffer_max_line_size = BUFFER_SIZE;
     return &udp_server_data;
 }
 
 int server_buffer_push(char* data,  int size_of_data){
-    sem_wait(&udp_server_data.udp_server_buffer.buffer_messages_semaphore);
-    int head = udp_server_data.udp_server_buffer.buffer_messages_head;
-    int tail = udp_server_data.udp_server_buffer.buffer_messages_tail;
-    int max_size = udp_server_data.udp_server_buffer.buffer_max_size;
-    int max_line_size = udp_server_data.udp_server_buffer.buffer_max_line_size;
-    int next = head+1;
-    if(next > max_size){
-        next = 0;
-    }
-    if(next == tail){
-        udp_server_data.udp_server_buffer.buffer_is_full = 1;
-        sem_post(&udp_server_data.udp_server_buffer.buffer_messages_semaphore);
-        return -1;
-    }
+    udp_server_buffer_t* buffer_data = &udp_server_data.udp_server_buffer;
+    sem_wait(&(buffer_data->buffer_messages_mutex));
+
+    int head = buffer_data->buffer_messages_head;
+    int tail = buffer_data->buffer_messages_tail;
+    int max_size = buffer_data->buffer_max_size;
+    int max_line_size = buffer_data->buffer_max_line_size;
+    int next = (head + 1 == max_size) ? 0 : head + 1;
+    
+    if(buffer_data->buffer_is_full){
+        sem_post(&buffer_data->buffer_messages_mutex);
+        return -1; // drop the message, buffer full
+    } 
+    
     int saturation_size_of_data = (size_of_data > max_line_size)? max_line_size:size_of_data;
     // printf("push: data='%s' size=%d max_line=%d saturated=%d\n", data, size_of_data, max_line_size, saturation_size_of_data);
-    memset(udp_server_data.udp_server_buffer.buffer_messages[head], 0, max_line_size);
-    
-    strncpy((udp_server_data.udp_server_buffer.buffer_messages[head]), data, saturation_size_of_data);
-    udp_server_data.udp_server_buffer.buffer_messages_head = next;
-    udp_server_data.udp_server_buffer.buffer_messages[head][saturation_size_of_data] = '\0';
+    memset(buffer_data->buffer_messages[head], 0, max_line_size);
+    strncpy((buffer_data->buffer_messages[head]), data, saturation_size_of_data);
+    buffer_data->buffer_messages[head][saturation_size_of_data] = '\0';
 
-    sem_post(&udp_server_data.udp_server_buffer.buffer_messages_semaphore);
+    if(next == tail){
+        buffer_data->buffer_is_full = 1;
+    }
+    buffer_data->buffer_messages_head = next;
+
+    sem_post(&buffer_data->buffer_messages_counting_sem);
+    sem_post(&buffer_data->buffer_messages_mutex);
     return 0;
 }
 
 int server_buffer_pop(char* dest_data){
-    sem_wait(&udp_server_data.udp_server_buffer.buffer_messages_semaphore);
-    int head = udp_server_data.udp_server_buffer.buffer_messages_head;
-    int tail = udp_server_data.udp_server_buffer.buffer_messages_tail;
-    int max_size = udp_server_data.udp_server_buffer.buffer_max_size;
-    int max_line_size = udp_server_data.udp_server_buffer.buffer_max_line_size;
-    int next = tail+1;
-    if(head == tail){
-        sem_post(&udp_server_data.udp_server_buffer.buffer_messages_semaphore);
-        return -1;
-    }
-    if(next == max_size){
-        next = 0;
-    }
-    char* src_data = udp_server_data.udp_server_buffer.buffer_messages[tail];
+    udp_server_buffer_t* buffer_data = &udp_server_data.udp_server_buffer;
+    sem_wait(&buffer_data->buffer_messages_counting_sem);
+    sem_wait(&buffer_data->buffer_messages_mutex);
+    
+    int head = buffer_data->buffer_messages_head;
+    int tail = buffer_data->buffer_messages_tail;
+    int max_size = buffer_data->buffer_max_size;
+    int max_line_size = buffer_data->buffer_max_line_size;
+    int next = ((tail + 1) == max_size) ? 0 : tail + 1;
+
+    char* src_data = buffer_data->buffer_messages[tail];
     int size_of_src_data = strlen(src_data);
     strncpy(dest_data, src_data, size_of_src_data);
     dest_data[size_of_src_data] = '\0';  
     
-    udp_server_data.udp_server_buffer.buffer_messages_tail = next;
-    udp_server_data.udp_server_buffer.buffer_is_full = 0;
+    buffer_data->buffer_messages_tail = next;
+    buffer_data->buffer_is_full = 0;
 
-    sem_post(&udp_server_data.udp_server_buffer.buffer_messages_semaphore);
+    sem_post(&buffer_data->buffer_messages_mutex);
     return 0;
 }
 
@@ -168,9 +170,9 @@ void server_listen_port(){
 
     udp_server_data.size_of_client_info = (socklen_t)sizeof(udp_server_data.client_info);           // shared but shouldn't be used (C trust)
     do{
-        sem_wait(&udp_server_data.udp_server_buffer.buffer_messages_semaphore);
+        sem_wait(&udp_server_data.udp_server_buffer.buffer_messages_mutex);
         buffer_is_full = udp_server_data.udp_server_buffer.buffer_is_full;
-        sem_post(&udp_server_data.udp_server_buffer.buffer_messages_semaphore);
+        sem_post(&udp_server_data.udp_server_buffer.buffer_messages_mutex);
 
         while((!buffer_is_full) && (!udp_server_data.stop_server)){        // get new messages up to max capacity (no message priority)
             recv_bytes = server_socket_wait_packets(udp_server_data.socket_fd, single_message_buffer, BUFFER_SIZE, (struct sockaddr *)&udp_server_data.client_info, &udp_server_data.size_of_client_info);
@@ -184,7 +186,8 @@ void server_listen_port(){
             }
         }
         if(udp_server_data.stop_server){                            // destroy the semaphore and the socket 
-            sem_destroy(&udp_server_data.udp_server_buffer.buffer_messages_semaphore);
+            sem_destroy(&udp_server_data.udp_server_buffer.buffer_messages_mutex);
+            sem_destroy(&udp_server_data.udp_server_buffer.buffer_messages_counting_sem);
             close(udp_server_data.socket_fd);
             should_exit = 1;
         }

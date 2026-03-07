@@ -7,8 +7,10 @@
 #include <sys/socket.h>                                             // needed for socklen_t
 #include <netinet/in.h>
 
+
 typedef struct udp_server_buffer_t {
-    sem_t buffer_messages_semaphore;                                // use this semaphore to access the buffer and its descriptors
+    sem_t buffer_messages_counting_sem;                             // use this one to wait for new messages
+    sem_t buffer_messages_mutex;                                    // use this semaphore to access the buffer and its descriptors
     char buffer_messages[BUFFER_SIZE][BUFFER_SIZE];                 // byte buffer,
     int buffer_max_size;                                            // row max count, set initially then constant to BUFFER_SIZE or some multiple of it
     int buffer_max_line_size;                                       // column max count, set initially then constant to BUFFER_SIZE
@@ -27,6 +29,7 @@ typedef struct udp_server_data_t {
     char stop_server;
 } udp_server_data_t;
 
+extern udp_server_data_t udp_server_data;                           // shared global variable (C trust)
 
 // initial function to test udp sockets, might not work now
 // int server_udp_channel_test();

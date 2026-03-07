@@ -10,22 +10,16 @@
 
 #define SERVER_IP       "127.0.0.1"
 #define SERVER_PORT     8181
-#define MAX_MSG_SIZE    256
-#define MIN_DELAY_MS    200     // minimum delay between messages in milliseconds
-#define MAX_DELAY_MS    2000    // maximum delay between messages in milliseconds
+#define MAX_MSG_SIZE    1024
+#define MIN_DELAY_MS    200
+#define MAX_DELAY_MS    2000
 
-// pool of random message templates to send
+// pool of example messages to send (requests from the UI app) (escaped using https://shortc.com/c-escaper/)
 static const char* message_pool[] = {
-    "hello from client",
-    "ping",
-    "status: ok",
-    "temperature: %d",
-    "sensor_reading: %d",
-    "heartbeat",
-    "data packet %d",
-    "alert: value exceeded %d",
-    "request: update",
-    "info: client running",
+    "  {\n    \"protocol\": \"robot-net/1.0\",\n    \"message_type\": 0,\n    \"request_id\": \"c9\",\n    \"mode\": 0,\n    \"timestamp\": \"2026-02-09T14:35:58.973698+00:00\",\n    \"payload\": {\n      \"command\": 0,\n      \"prop\": 6\n    }\n  }",
+    "  {\n    \"protocol\": \"robot-net/1.0\",\n    \"message_type\": 0,\n    \"request_id\": \"91\",\n    \"mode\": 0,\n    \"timestamp\": \"2026-02-09T14:32:48.191140+00:00\",\n    \"payload\": {\n      \"command\": 1,\n      \"prop\": 0,\n      \"new_value\": 77\n    }\n  }",
+    "  {\n    \"protocol\": \"robot-net/1.0\",\n    \"message_type\": 0,\n    \"request_id\": \"89\",\n    \"mode\": 0,\n    \"timestamp\": \"2026-02-09T14:30:33.468733+00:00\",\n    \"payload\": {\n      \"command\": 2,\n      \"motor_id\": [\n        -1\n      ],\n      \"direction\": 2,\n      \"speed\": 100,\n      \"angle\": 0,\n      \"duration_ms\": 0\n    }\n  }",
+    "  {\n    \"protocol\": \"robot-net/1.0\",\n    \"message_type\": 0,\n    \"request_id\": \"91\",\n    \"mode\": 0,\n    \"timestamp\": \"2026-02-09T14:28:33.468733+00:00\",\n    \"payload\": {\n      \"command\": 2,\n      \"motor_id\": [\n        -1\n      ],\n      \"direction\": 0,\n      \"speed\": 100,\n      \"angle\": 0,\n      \"duration_ms\": 0\n    }\n  }"
 };
 static const int message_pool_size = sizeof(message_pool) / sizeof(message_pool[0]);
 
@@ -85,7 +79,7 @@ int main(){
         if(sent < 0){
             perror("client - sendto failed");
         } else {
-            printf("[msg #%d] sent: \"%s\" (%zd bytes)\n", ++msg_count, message, sent);
+           // printf("[msg #%d] sent: \"%s\" (%zd bytes)\n", ++msg_count, message, sent);
         }
 
         // sleep for a random delay between MIN and MAX

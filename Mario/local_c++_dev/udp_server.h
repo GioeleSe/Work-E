@@ -1,5 +1,5 @@
-#ifndef UDP_SERVER
-#define UDP_SERVER
+#ifndef UDP_SERVER_H
+#define UDP_SERVER_H
 
 #define SERVER_PORT 8181
 #define BUFFER_SIZE 1024

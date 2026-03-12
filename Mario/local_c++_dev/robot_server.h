@@ -6,6 +6,12 @@
 
 #define PROTOCOL "robot-net/1.0"
 
+
+typedef enum{
+    RobotState_IDLE = 0,
+    RobotState_BUSY = 1,
+    RobotState_ERR = 2
+}RobotState_t;
 typedef enum MessageMode
 {
     MessageMode_MANUAL = 0,
@@ -31,6 +37,11 @@ typedef enum
     CommandType_EMERGENCY_STOP = 4,
     CommandType_RESET = 5
 }CommandType_t;
+typedef enum ActionResult{
+    ActionResult_SUCCESS = 0,
+    ActionResult_FAILURE = 1,
+    ActionResult_PENDING = 2
+}ActionResult_t;
 typedef enum
 {
     DestinationCheckpoint_HOME = 0, // starting point
@@ -130,11 +141,11 @@ typedef struct GetConfigPayload
 } GetConfigPayload_t;
 typedef struct EmergencyStopPayload
 {
-    const char *stop; // gotta simply match the "stop" keyword to stop the tasks currently running
+    char *stop; // gotta simply match the "stop" keyword to stop the tasks currently running
 } EmergencyStopPayload_t;
 typedef struct ResetPayload
 {
-    const char *reset; // gotta simply match the "reset" keyword to reset the board (idle/busy) or clear the error state (or clear the active emergency stop state)
+    char *reset; // gotta simply match the "reset" keyword to reset the board (idle/busy) or clear the error state (or clear the active emergency stop state)
 } ResetPayload_t;
 
 

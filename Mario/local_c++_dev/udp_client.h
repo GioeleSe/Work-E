@@ -1,5 +1,6 @@
 #ifndef UDP_CLIENT_H
 #define UDP_CLIENT_H
+#include <sys/types.h>
 
 #define SERVER_ADDRESS "127.0.0.1\0"
 #define SERVER_PORT 8181

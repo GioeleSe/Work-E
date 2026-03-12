@@ -155,7 +155,7 @@ void set_message_common_headers(const JsonObject& reply_doc){
     reply_doc["timestamp"] = time(NULL);
 }
 
-// define the payload of
+// parse the payload to the specific get_config expected structure
 int get_get_config_payload( const JsonObject& json_payload, GetConfigPayload_t* get_config_payload){
     JsonVariant prop_name = json_payload["prop"];
     if((prop_name.isNull()) || !(prop_name.is<int>())){
@@ -168,6 +168,54 @@ int get_get_config_payload( const JsonObject& json_payload, GetConfigPayload_t* 
         return -1;
     }
     get_config_payload->prop = (ConfigFields_t)prop_name_int;
+    return 0;
+}
+
+// parse the payload to the specific set_config expected structure
+int get_set_config_payload( const JsonObject& json_payload, SetConfigPayload_t* set_config_payload){
+    JsonVariant prop_name = json_payload["prop"];
+    JsonVariant prop_value = json_payload["new_value"];
+    if((prop_name.isNull()) || !(prop_name.is<int>())){
+        printf("invalid property field inside payload (expected non-null integer)\n");
+        return -1;
+    }
+    if((prop_value.isNull()) || !(prop_value.is<int>())){
+        printf("invalid property value field inside payload (expected non-null integer)\n");
+        return -1;
+    }
+    int prop_name_int = prop_name.as<int>();
+    int prop_value_int = prop_value.as<int>();
+    if(prop_name_int < 0){                                          // prop value is allowed to be negative (hence not checked here)
+        printf("unrecognized value for prop (configfields) value: %d\n", prop_name_int);
+        return -1;
+    }
+    set_config_payload->prop = (ConfigFields_t)prop_name_int;
+    set_config_payload->new_value = (void*)malloc(sizeof(int));     // void* type, cannot use it directly as int
+    return 0;
+}
+
+// parse the payload to the specific reset expected structure
+int get_reset_payload(const JsonObject& json_payload, ResetPayload_t* reset_payload){
+    JsonVariant reset_keyword = json_payload["reset"];
+    if((reset_keyword.isNull()) || !(reset_keyword.is<const char*>())){
+        printf("invalid reset field inside payload (expected non-null string)\n");
+        return -1;
+    }
+    const char* reset_keyword_str = reset_keyword.as<const char*>();
+    strncpy(reset_payload->reset, reset_keyword_str, strlen(reset_keyword_str));                    // no others length check measures for now, C trust @.@ 
+    return 0;
+}
+
+// parse the payload to the specific emergency_stop expected structure
+int get_emergency_stop_payload(const JsonObject& json_payload, EmergencyStopPayload_t* emergency_stop_payload) {
+    JsonVariant emergency_stop_keyword = json_payload["stop"];
+    if((emergency_stop_keyword.isNull()) || !(emergency_stop_keyword.is<const char*>())){
+        printf("invalid emergency_stop field inside payload (expected non-null string)\n");
+        return -1;
+    }
+    const char* emergency_stop_keyword_str = emergency_stop_keyword.as<const char*>();
+    strncpy(emergency_stop_payload->stop, emergency_stop_keyword_str, strlen(emergency_stop_keyword_str));
+    return 0;
 }
 
 // get the current property value of the robot (functions defined in main_robot)
@@ -179,35 +227,37 @@ int get_config_handler(uint16_t command_uuid, GetConfigPayload_t* get_config_pay
     reply_packet["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
     reply_packet["request_uuid"] = command_uuid;                    // use the same as the command/request so that the server can track the source event for this reply
     reply_packet["payload"]["prop"] = get_config_payload->prop;
-
+    
+    int get_value = -1;                                             // default to -1 to signal a potential error
     switch(get_config_payload->prop){                               // amazing job of vscode shortcuts for these lines
         case ConfigFields_t::ConfigFields_SPEED:
-            reply_packet["payload"]["value"] = self_prop_get_speed();
+            get_value = self_prop_get_speed();
         case ConfigFields_t::ConfigFields_FEEDBACK:
-            reply_packet["payload"]["value"] = self_prop_get_feedback();
+            get_value = self_prop_get_feedback();
         case ConfigFields_t::ConfigFields_DEBUG:
-            reply_packet["payload"]["value"] = self_prop_get_debug();
+            get_value = self_prop_get_debug();
         case ConfigFields_t::ConfigFields_NAVIGATION_TYPE:
-            reply_packet["payload"]["value"] = self_prop_get_navigation_type();
+            get_value = self_prop_get_navigation_type();
         case ConfigFields_t::ConfigFields_ROUTE_POLICY:
-            reply_packet["payload"]["value"] = self_prop_get_route_policy();
+            get_value = self_prop_get_route_policy();
         case ConfigFields_t::ConfigFields_RADAR:
-            reply_packet["payload"]["value"] = self_prop_get_radar();
+            get_value = self_prop_get_radar();
         case ConfigFields_t::ConfigFields_SCREEN:
-            reply_packet["payload"]["value"] = self_prop_get_screen();
+            get_value = self_prop_get_screen();
         case ConfigFields_t::ConfigFields_OBSTACLE_CLEANER:
-            reply_packet["payload"]["value"] = self_prop_get_obstacle_cleaner();
+            get_value = self_prop_get_obstacle_cleaner();
         case ConfigFields_t::ConfigFields_OBJECT_LOADER:
-            reply_packet["payload"]["value"] = self_prop_get_object_loader();
+            get_value = self_prop_get_object_loader();
             case ConfigFields_t::ConfigFields_OBJECT_UNLOADER:
-            reply_packet["payload"]["value"] = self_prop_get_object_unloader();
+            get_value = self_prop_get_object_unloader();
         case ConfigFields_t::ConfigFields_OBJECT_COMPACTER:
-            reply_packet["payload"]["value"] = self_prop_get_object_compacter();
+            get_value = self_prop_get_object_compacter();
         default:
             printf("unrecognized value for prop (configfields) value: %d\n", get_config_payload->prop);
-            return -1;
+            reply_packet["payload"]["status"] = ActionResult_t::ActionResult_FAILURE;               // consume here the error by setting a "failure warning" message back ("value" will be -1)
         break;
     }
+    reply_packet["payload"]["value"] = get_value;
 
     char reply_packet_serialized[BUFFER_SIZE];
     ssize_t reply_packet_serialized_size = serializeJson(reply_packet, reply_packet_serialized);
@@ -215,6 +265,113 @@ int get_config_handler(uint16_t command_uuid, GetConfigPayload_t* get_config_pay
     return 0;
 }
 
+// call the set function for the correct property to change. The new value is assigned using main_robot functions 
+// (any error is consumed with failure feedback)
+int set_config_handler(uint16_t command_uuid, SetConfigPayload_t* set_config_payload){
+    JsonObject reply_packet;
+    set_message_common_headers(reply_packet);
+    reply_packet["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
+    reply_packet["request_uuid"] = command_uuid;                    // use the same as the command/request so that the server can track the source event for this reply
+    reply_packet["payload"]["status"] = ActionResult_t::ActionResult_SUCCESS;                       // default to success, changed if any later step fails
+    
+    int int_new_value = *((int*)(set_config_payload->new_value));   // common copy here as int, for now the only property type (used as enum index)
+    free(set_config_payload->new_value);                            
+    set_config_payload->new_value = NULL;
+    
+    switch(set_config_payload->prop){
+        case ConfigFields_t::ConfigFields_SPEED:
+            self_prop_set_speed(int_new_value);
+        case ConfigFields_t::ConfigFields_FEEDBACK:
+            self_prop_set_feedback(int_new_value);
+        case ConfigFields_t::ConfigFields_DEBUG:
+            self_prop_set_debug(int_new_value);
+        case ConfigFields_t::ConfigFields_NAVIGATION_TYPE:
+            self_prop_set_navigation_type(int_new_value);
+        case ConfigFields_t::ConfigFields_ROUTE_POLICY:
+            self_prop_set_route_policy(int_new_value);
+        case ConfigFields_t::ConfigFields_RADAR:
+            self_prop_set_radar(int_new_value);
+        case ConfigFields_t::ConfigFields_SCREEN:
+            self_prop_set_screen(int_new_value);
+        case ConfigFields_t::ConfigFields_OBSTACLE_CLEANER:
+            self_prop_set_obstacle_cleaner(int_new_value);
+        case ConfigFields_t::ConfigFields_OBJECT_LOADER:
+            self_prop_set_object_loader(int_new_value);
+            case ConfigFields_t::ConfigFields_OBJECT_UNLOADER:
+            self_prop_set_object_unloader(int_new_value);
+        case ConfigFields_t::ConfigFields_OBJECT_COMPACTER:
+            self_prop_set_object_compacter(int_new_value);
+        default:
+            printf("unrecognized value for prop (configfields) value: %d. Wanted (new) int value: %d\n", set_config_payload->prop, int_new_value);
+            reply_packet["payload"]["status"] = ActionResult_t::ActionResult_FAILURE;               // consume here the error by setting a "failure warning" message back
+        break;
+    }
+
+    char reply_packet_serialized[BUFFER_SIZE];
+    ssize_t reply_packet_serialized_size = serializeJson(reply_packet, reply_packet_serialized);
+    client_send_packet(reply_packet_serialized, reply_packet_serialized_size);                      // error of the sending procedure ignored (set RETRY_SEND_MESSAGE to 1 in udp_client.h to perform multiple attempts in the (socket) sending procedure)
+    return 0;
+}
+
+// checking the current robot state and calling soft or hard reset function
+// (any error is consumed with failure feedback)
+int reset_handler(uint16_t command_uuid, ResetPayload_t* reset_payload){
+    JsonObject reply_packet;
+    set_message_common_headers(reply_packet);
+    reply_packet["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
+    reply_packet["request_uuid"] = command_uuid;
+    reply_packet["payload"]["status"] = ActionResult_t::ActionResult_SUCCESS;
+    int error_feedback = 0;
+
+    if(strncmp(reset_payload->reset, "reset", strlen("reset")) != 0){
+        // send back a failure feedback (expected "reset" keyword as unique field with same key and val)
+        printf("unrecognized value for reset command: '%s'. Expected string: 'reset'\n",reset_payload->reset);
+        error_feedback = 1;
+    }else{
+        // call the main_robot function self_get_robot_status() to get an index of the enum RobotState_t
+        // check for which type of activations to call (idle/busy context -> reset the entire board; emergency stop/error -> force a clear of the error state)
+        // finally call the main_robot functions self_hard_reset() or self_soft_reset() 
+        RobotState_t current_robot_state = (RobotState_t)self_prop_get_robot_status();
+        switch(current_robot_state){
+            RobotState_ERR:
+                printf("calling soft_reset function ... \n");
+                self_soft_reset();
+                break;
+            RobotState_BUSY:
+            RobotState_IDLE:
+            default:                                                // unrecognized robot state triggers an hard reset
+                printf("calling hard_reset function ... \n");
+                self_hard_reset();
+                break;
+        }
+    }
+    reply_packet["payload"]["status"] = (error_feedback)?ActionResult_t::ActionResult_FAILURE:ActionResult_t::ActionResult_SUCCESS;
+    
+    char reply_packet_serialized[BUFFER_SIZE];
+    ssize_t reply_packet_serialized_size = serializeJson(reply_packet, reply_packet_serialized);
+    client_send_packet(reply_packet_serialized, reply_packet_serialized_size);
+    return 0;
+}
+
+int emergency_stop_handler(uint16_t command_uuid, EmergencyStopPayload_t* emergency_stop_payload){
+    JsonObject reply_packet;
+    set_message_common_headers(reply_packet);
+    reply_packet["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
+    reply_packet["request_uuid"] = command_uuid;
+    reply_packet["payload"]["status"] = ActionResult_t::ActionResult_SUCCESS;
+    
+    printf("calling emergency_stop function ... \n");
+    self_emergency_stop();
+
+    char reply_packet_serialized[BUFFER_SIZE];
+    ssize_t reply_packet_serialized_size = serializeJson(reply_packet, reply_packet_serialized);
+    client_send_packet(reply_packet_serialized, reply_packet_serialized_size);
+    return 0;
+}
+
+// Deserialize the Json from string argument "packet" and check for presence and type of common fields
+// According to the incoming command the proper handler is called (with the parsed specific payload)
+// Note: handler errors are ignored for now
 int PacketHandler(char* packet, ssize_t packet_size){
     if (packet == nullptr || packet_size <= 0) {
         printf("PacketHandler: invalid packet pointer\n");
@@ -248,22 +405,41 @@ int PacketHandler(char* packet, ssize_t packet_size){
     int command = check_command(payload);                       
     switch(command){                                                // TODO: complete all handlers routing
         case CommandType_t::CommandType_GET_PROPERTY:
-        GetConfigPayload_t get_config_payload;
-        if(get_get_config_payload(payload, &get_config_payload) < 0){
-            printf("Invalid payload for get_config command\n");
-            return -1;
-        }
-        get_config_handler(request_id, &get_config_payload);
+            GetConfigPayload_t get_config_payload;
+            if(get_get_config_payload(payload, &get_config_payload) < 0){
+                printf("Invalid payload for get_config command\n");
+                return -1;
+            }
+            get_config_handler(request_id, &get_config_payload);
         break;
         case CommandType_t::CommandType_SET_PROPERTY:
-        break;
-        case CommandType_t::CommandType_MOTOR_CONTROL:
-        break;
-        case CommandType_t::CommandType_MOVE:
+            SetConfigPayload_t set_config_payload;
+            if(get_set_config_payload(payload, &set_config_payload) < 0){
+                printf("Invalid payload for set_config command\n");
+                return -1;
+            }    
+            set_config_handler(request_id, &set_config_payload);
         break;
         case CommandType_t::CommandType_EMERGENCY_STOP:
+            EmergencyStopPayload_t emergency_stop_payload;
+            if(get_emergency_stop_payload(payload, &emergency_stop_payload) < 0){
+                printf("Invalid payload for emergency_stop command\n");
+                return -1;
+            }    
+            emergency_stop_handler(request_id, &emergency_stop_payload);
         break;
         case CommandType_t::CommandType_RESET:
+            ResetPayload_t reset_payload;
+            if(get_reset_payload(payload, &reset_payload) < 0){
+                printf("Invalid payload for reset command\n");
+                return -1;
+            }    
+            reset_handler(request_id, &reset_payload);
+        break;
+        case CommandType_t::CommandType_MOTOR_CONTROL:
+            // TODO: GOON here ç.ç
+        break;
+        case CommandType_t::CommandType_MOVE:
         break;
         default:
             printf("unrecognized command value: %d\n", command);

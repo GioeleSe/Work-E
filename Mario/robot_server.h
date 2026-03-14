@@ -6,7 +6,17 @@
 
 #define PROTOCOL "robot-net/1.0"
 #define MAX_MOTORS_COUNT 8                                          // avoid heap allocation, preallocate full size (int) array
+#define MAX_CHAR_MSG 40
+#define REFUSE_BUSY_TASK 1                                          // if 1 refuse new task while robot is busy replying with RobotState_BUSY
+#define REFUSE_BUSY_TASK_MSG "Task refused cause robot was busy"
+#define REFUSE_INTERNAL_ERROR_MSG "Task refused cause robot was confused"
+#define TASK_DONE_MSG "Task done successfully c:"
 
+typedef enum{
+    ErrorCode_NO_ERROR = 0,
+    ErrorCode_ROBOT_ERROR_STATE = 100,
+    ErrorCode_ROBOT_BUSY_STATE = 200                                // command ignored cause it was busy
+}ErrorCode_t;
 typedef enum{
     RobotState_IDLE = 0,
     RobotState_BUSY = 1,
@@ -87,6 +97,11 @@ typedef enum
     FeedbackLevel_MINIMAL = 1, // feedback messages with more details/info
     FeedbackLevel_DEBUG = 2   // send back to server a debug-level feedback
 } FeedbackLevel_t;
+typedef enum{
+    ErrorSeverity_t_LOW = 0,
+    ErrorSeverity_t_MID = 1,
+    ErrorSeverity_t_HIGH = 2
+} ErrorSeverity_t;
 typedef enum
 {
     Motors_END_MOT = -1, // end of motor list
@@ -125,7 +140,7 @@ typedef struct MovePayload
 typedef struct MotorControlPayload
 {
     Motors_t motor_ids[MAX_MOTORS_COUNT];   // can activate multiple motors at once, if the vector is empty the intended action is to drive it as a car
-    Direction_t direction; // can be LEFT or RIGHT only if motor_ids is empty, ignored otherwise
+    Direction_t direction; // Direction_FORWARD or Direction_BACKWARD for direct motor control. Can be Direction_LEFT or Direction_RIGHT only if motor_ids is empty
     uint8_t speed;       // 0-100, basically the direct pwm ratio
     int angle;           // from -360 to +360, on spot rotation angle
     uint32_t duration;   // can be 0 or greater (0 -> keep running, otherwise set a timeout)
@@ -141,13 +156,24 @@ typedef struct GetConfigPayload
 } GetConfigPayload_t;
 typedef struct EmergencyStopPayload
 {
-    char *stop; // gotta simply match the "stop" keyword to stop the tasks currently running
+    char stop[MAX_CHAR_MSG]; // gotta simply match the "stop" keyword to stop the tasks currently running
 } EmergencyStopPayload_t;
 typedef struct ResetPayload
 {
-    char *reset; // gotta simply match the "reset" keyword to reset the board (idle/busy) or clear the error state (or clear the active emergency stop state)
+    char reset[MAX_CHAR_MSG]; // gotta simply match the "reset" keyword to reset the board (idle/busy) or clear the error state (or clear the active emergency stop state)
 } ResetPayload_t;
 
+
+typedef struct PropertyMsg_t{
+    ConfigFields_t prop;
+    int value;
+} PropertyMsg_t;
+
+typedef struct FeedbackMsg_t{
+    ActionResult status;
+    ErrorCode_t error_code;
+    char error_message[MAX_CHAR_MSG];
+}FeedbackMsg_t;
 
 // Check packet integrity (structured as protocol)
 // and packet meaning -> decide which callback to use

@@ -388,7 +388,7 @@ int reset_handler(uint16_t command_uuid, ResetPayload_t* reset_payload){
         // call the main_robot function self_get_robot_status() to get an index of the enum RobotState_t
         // check for which type of activations to call (idle/busy context -> reset the entire board; emergency stop/error -> force a clear of the error state)
         // finally call the main_robot functions self_hard_reset() or self_soft_reset() 
-        RobotState_t current_robot_state = (RobotState_t)self_prop_get_robot_status();
+        RobotState_t current_robot_state = (RobotState_t)self_prop_get_robot_state();
         switch(current_robot_state){
             RobotState_ERR:
                 printf("calling soft_reset function ... \n");
@@ -426,11 +426,104 @@ int emergency_stop_handler(uint16_t command_uuid, EmergencyStopPayload_t* emerge
     return 0;
 }
 
+// Perform de-multipling from motor_control functionality of the UI server to the almost high level functions like // Perform de-multipling from motor_control functionality of the UI server to the almost high level functions like moveself_motion_car_proceed
+// From this function the robot will send back error, pending or success feedback according to the command shape.
+// Note: for now no check on the actual activation functions is implemented (even if they're defined as int functions)
 int motor_control_handler(uint16_t command_uuid, MotorControlPayload_t* motor_control_payload){
-    // TODO: GOON here @.@
-    // check if the robot is busy too!
-    // define which functions the main code should expose 
-    // decide which type of activations is better to use (high level "move_forward" or low level "start_motor")
+    JsonObject reply_packet;
+    set_message_common_headers(reply_packet);
+    reply_packet["request_uuid"] = command_uuid;
+    reply_packet["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
+    FeedbackMsg_t feedback_msg;
+    
+    int route_command = 0;
+    int pending_command = 0;
+
+    RobotState_t robot_state = (RobotState_t)self_prop_get_robot_state();
+    int speed = motor_control_payload->speed;
+    int duration = motor_control_payload->duration;
+    int angle = motor_control_payload->angle;    
+    Direction_t direction = motor_control_payload->direction;
+    switch(robot_state){
+        case RobotState_t::RobotState_IDLE:
+            route_command = 1;
+            break;
+        case RobotState_t::RobotState_BUSY:
+            if(REFUSE_BUSY_TASK){
+                feedback_msg.error_code = ErrorCode_t::ErrorCode_ROBOT_BUSY_STATE;
+                strncpy(feedback_msg.error_message, REFUSE_BUSY_TASK_MSG, strlen(REFUSE_BUSY_TASK_MSG));
+                feedback_msg.status = ActionResult_t::ActionResult_FAILURE;
+            }else{
+                // send a PENDING state for this task but call directly the needed function. *No function buffer* is used (too complicated for this scope)
+                feedback_msg.error_code = ErrorCode_t::ErrorCode_ROBOT_BUSY_STATE;
+                feedback_msg.status = ActionResult_t::ActionResult_PENDING;
+                route_command = 1;
+                pending_command = 1;
+            }
+            break;
+        case RobotState_t::RobotState_ERR:                          // internal error state -> send back an error
+        default:
+            // send an ERROR feedback message
+            feedback_msg.error_code = ErrorCode_t::ErrorCode_ROBOT_ERROR_STATE;
+            feedback_msg.status = ActionResult_t::ActionResult_FAILURE;
+            strncpy(feedback_msg.error_message, REFUSE_INTERNAL_ERROR_MSG, strlen(REFUSE_INTERNAL_ERROR_MSG));
+            break;            
+    }
+
+    if(route_command){
+        if(motor_control_payload->motor_ids[0] == Motors_t::Motors_END_MOT){  // no motors -> drive as a car
+            // NOTE: the speed parameter is ignored in car driving, the robot is expected to use the **internal** speed property
+            // if(speed == 0) self_motion_car_stop();
+            switch(direction){
+                case Direction_t::Direction_LEFT:
+                case Direction_t::Direction_RIGHT:
+                    self_motion_car_rotate(direction);
+                break;
+                case Direction_t::Direction_BACKWARD:
+                case Direction_t::Direction_FORWARD:
+                    self_motion_car_proceed(direction);
+                break;
+                case Direction_t::Direction_STOP:
+                default:                                            // stop the robot even if the direction has an invalid value (safety and common sense)
+                    self_motion_car_stop();
+                break;
+            }
+        }else{
+            int index = 0;
+            Motors_t motor_id = motor_control_payload->motor_ids[index];
+            
+            while((motor_id != Motors_t::Motors_END_MOT) && (index < MAX_MOTORS_COUNT)){ // start or stop each single motor
+                if(angle != 0){
+                    self_motion_steer_servo(motor_id, angle);
+                }else{
+                    if(speed == 0){
+                        self_motion_stop_motor(motor_id);           // allow to stop motors even with speed=0 (below it's the Direction_STOP alternative)
+                    }else{
+                        switch(direction){
+                            case Direction_t::Direction_BACKWARD:
+                            case Direction_t::Direction_FORWARD:
+                                self_motion_activate_dc_motor(motor_id, direction, speed, motor_control_payload->duration);
+                            break;
+                            case Direction_t::Direction_STOP:
+                            default:
+                                self_motion_stop_motor(motor_id);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // for now no checks are implemented on the actual activations (defined as int functions for possible extensions)
+    if(!pending_command){
+        feedback_msg.error_code = ErrorCode_t::ErrorCode_NO_ERROR;
+        feedback_msg.status = ActionResult_t::ActionResult_SUCCESS;
+        strncpy(feedback_msg.error_message, TASK_DONE_MSG, strlen(TASK_DONE_MSG));
+    }
+        
+    char reply_packet_serialized[BUFFER_SIZE];
+    ssize_t reply_packet_serialized_size = serializeJson(reply_packet, reply_packet_serialized);
+    client_send_packet(reply_packet_serialized, reply_packet_serialized_size);
     return 0;
 }
 

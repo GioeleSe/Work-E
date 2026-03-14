@@ -1,11 +1,12 @@
 #ifndef MAIN_ROBOT_H
 #define MAIN_ROBOT_H
+#include "robot_server.h"
 
 // should be defined as a global constant in the robot main code
 int self_prop_get_robot_id();
 
 // return an integer index of the enum RobotState_t
-int self_prop_get_robot_status();
+int self_prop_get_robot_state();
 
 
 // return integer representation of property speed (actual value, casted bool or enum index)
@@ -74,5 +75,35 @@ int self_soft_reset();
 
 // stop any active process/task and trigger the error state
 int self_emergency_stop();
+
+// Start the specified motor in the wanted direction.
+// For DC motors the activation is given by the driver activation (with a stop callback if duration is set != 0)
+// The DC rotating direction can be Direction_t::Direction_BACKWARD or Direction_t::Direction_FORWARD (using pseudocode this is: (pin A, pin B)=(1,0) or (pin A, pin B)=(0,1))
+// The DC speed can be tuned with a pwm signal on the HIGH ping. This looks something like (pin A, pin B)=(analogWrite((speed*(256))/100),0). That's the mapping of percentage to a pwm value 0-256 (expected parameter for analog write)
+int self_motion_activate_dc_motor(Motors_t motor_id, Direction_t direction, int speed, int duration);
+
+// Stop the specified motor.
+// Just stop it by setting (pin A, pin B)=[(1,1) | (0,0)])
+int self_motion_stop_motor(Motors_t motor_id);
+
+// Turn the specified motor (expected to be a Servo) of the wanted angle parameter.
+// It should be easly mapped to the Servo library function servo.write(angle)
+// (speed is ignored, just turn it as you want)
+int self_motion_steer_servo(Motors_t motor_id, int angle);
+
+// Turn the robot to the specified direction value.
+// No timing, no motor ids, just turn it as you want.
+// Note: in the body of this the function self_motion_activate_dc_motor should be reused with an empirical measured duration
+int self_motion_car_rotate(Direction_t direction);
+
+// Make the robot go forward or backward according to the specified direction value.
+// This command will activate the wheel motors in the correct direction with the **internal** speed.
+// Here the speed parameter is ignored in car driving, the robot is expected to use the **internal** speed property.
+// Note: the robot is expected to stop only when self_motion_car_stop() is called.
+int self_motion_car_proceed(Direction_t direction);
+
+// Simply stop the wheel motors
+// Note: in the body of this the function self_motion_stop_motor should be reused.
+int self_motion_car_stop();
 
 #endif

@@ -172,6 +172,8 @@ int get_get_config_payload( const JsonObject& json_payload, GetConfigPayload_t* 
 }
 
 // parse the payload to the specific set_config expected structure
+// NOTE: the expected new value is int type!
+// return -1 for null or invalid type fields
 int get_set_config_payload( const JsonObject& json_payload, SetConfigPayload_t* set_config_payload){
     JsonVariant prop_name = json_payload["prop"];
     JsonVariant prop_value = json_payload["new_value"];
@@ -190,11 +192,12 @@ int get_set_config_payload( const JsonObject& json_payload, SetConfigPayload_t* 
         return -1;
     }
     set_config_payload->prop = (ConfigFields_t)prop_name_int;
-    set_config_payload->new_value = (void*)malloc(sizeof(int));     // void* type, cannot use it directly as int
+    set_config_payload->new_value = (int)(prop_value);
     return 0;
 }
 
 // parse the payload to the specific reset expected structure
+// return -1 for null or invalid type field
 int get_reset_payload(const JsonObject& json_payload, ResetPayload_t* reset_payload){
     JsonVariant reset_keyword = json_payload["reset"];
     if((reset_keyword.isNull()) || !(reset_keyword.is<const char*>())){
@@ -207,6 +210,7 @@ int get_reset_payload(const JsonObject& json_payload, ResetPayload_t* reset_payl
 }
 
 // parse the payload to the specific emergency_stop expected structure
+// return -1 for null or invalid type field
 int get_emergency_stop_payload(const JsonObject& json_payload, EmergencyStopPayload_t* emergency_stop_payload) {
     JsonVariant emergency_stop_keyword = json_payload["stop"];
     if((emergency_stop_keyword.isNull()) || !(emergency_stop_keyword.is<const char*>())){
@@ -215,6 +219,61 @@ int get_emergency_stop_payload(const JsonObject& json_payload, EmergencyStopPayl
     }
     const char* emergency_stop_keyword_str = emergency_stop_keyword.as<const char*>();
     strncpy(emergency_stop_payload->stop, emergency_stop_keyword_str, strlen(emergency_stop_keyword_str));
+    return 0;
+}
+
+// parse the payload to the specific motor_control expected structure
+// return -1 for null or invalid type fields
+int get_motor_control_payload(const JsonObject& json_payload, MotorControlPayload_t* motor_control_payload){
+    /*
+        "payload": {
+            "command": 2,
+            "motor_id": [
+                -1                          // no explicit motor to drive (-1 is end_mot) -> drive as a car!
+            ],
+            "direction": 0,
+            "speed": 100,
+            "angle": 0,
+            "duration_ms": 0
+        }
+    */
+    JsonVariant motor_id_list = json_payload["motor_id"];           // -1 as terminal value, list of indexes of enum Motors_t
+    JsonVariant direction = json_payload["direction"];              // index of enum Direction_t
+    JsonVariant speed = json_payload["speed"];
+    JsonVariant angle = json_payload["angle"];
+    JsonVariant duration_ms = json_payload["duration_ms"];          // 0 as continuous movement
+    
+    // check existence and type
+    JsonVariant int_fields_list[] = {direction, speed, angle, duration_ms}; // motor_id_list is array of int
+    for(JsonVariant field : int_fields_list){
+        if((field.isNull()) || (!field.is<int>())){
+            printf("invalid motor_control field inside payload (expected non-null int)\n");
+            return -1; 
+        }
+    }
+    if((motor_id_list.isNull()) || !(motor_id_list.is<JsonArray>())){
+        printf("invalid motor_control field inside payload (expected non-null int array)\n");
+        return -1; 
+    }
+    for (JsonVariant motor_id : motor_id_list.as<JsonArray>()) {
+        if (!motor_id.is<int>()) {
+            printf("invalid motor_control field inside payload (expected array of int)\n");
+            return -1;
+        }
+    }
+
+    // payload struct building
+    JsonArray motor_id_list_array = motor_id_list.as<JsonArray>();
+    int array_size = motor_id_list_array.size();
+    array_size = (array_size < MAX_MOTORS_COUNT)?array_size:MAX_MOTORS_COUNT; // max size clip (some kind of basic protection)
+
+    for(int i = 0; i < (array_size); i++){
+        motor_control_payload->motor_ids[i] = (Motors_t)motor_id_list_array[i].as<int>();           // the terminal value must be inserted to understand the actual size of the list
+    }
+    motor_control_payload->direction = direction;
+    motor_control_payload->speed = speed;
+    motor_control_payload->angle = angle;
+    motor_control_payload->duration = duration_ms;
     return 0;
 }
 
@@ -274,9 +333,7 @@ int set_config_handler(uint16_t command_uuid, SetConfigPayload_t* set_config_pay
     reply_packet["request_uuid"] = command_uuid;                    // use the same as the command/request so that the server can track the source event for this reply
     reply_packet["payload"]["status"] = ActionResult_t::ActionResult_SUCCESS;                       // default to success, changed if any later step fails
     
-    int int_new_value = *((int*)(set_config_payload->new_value));   // common copy here as int, for now the only property type (used as enum index)
-    free(set_config_payload->new_value);                            
-    set_config_payload->new_value = NULL;
+    int int_new_value = (set_config_payload->new_value);   // common copy here as int, for now the only property type (used as enum index)
     
     switch(set_config_payload->prop){
         case ConfigFields_t::ConfigFields_SPEED:
@@ -369,6 +426,14 @@ int emergency_stop_handler(uint16_t command_uuid, EmergencyStopPayload_t* emerge
     return 0;
 }
 
+int motor_control_handler(uint16_t command_uuid, MotorControlPayload_t* motor_control_payload){
+    // TODO: GOON here @.@
+    // check if the robot is busy too!
+    // define which functions the main code should expose 
+    // decide which type of activations is better to use (high level "move_forward" or low level "start_motor")
+    return 0;
+}
+
 // Deserialize the Json from string argument "packet" and check for presence and type of common fields
 // According to the incoming command the proper handler is called (with the parsed specific payload)
 // Note: handler errors are ignored for now
@@ -437,9 +502,15 @@ int PacketHandler(char* packet, ssize_t packet_size){
             reset_handler(request_id, &reset_payload);
         break;
         case CommandType_t::CommandType_MOTOR_CONTROL:
-            // TODO: GOON here ç.ç
+        MotorControlPayload_t motor_control_payload;
+            if(get_motor_control_payload(payload, &motor_control_payload) < 0){
+                printf("Invalid payload for motor control command\n");
+                return -1;
+            }
+            reset_handler(request_id, &motor_control_payload);
         break;
         case CommandType_t::CommandType_MOVE:
+            // TODO: GOON here ç.ç
         break;
         default:
             printf("unrecognized command value: %d\n", command);

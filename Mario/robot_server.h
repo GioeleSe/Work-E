@@ -5,7 +5,7 @@
 #include "udp_server.h"
 
 #define PROTOCOL "robot-net/1.0"
-
+#define MAX_MOTORS_COUNT 8                                          // avoid heap allocation, preallocate full size (int) array
 
 typedef enum{
     RobotState_IDLE = 0,
@@ -124,7 +124,7 @@ typedef struct MovePayload
 } MovePayload_t;
 typedef struct MotorControlPayload
 {
-    Motors_t *motor_ids;   // can activate multiple motors at once, if the vector is empty the intended action is to drive it as a car
+    Motors_t motor_ids[MAX_MOTORS_COUNT];   // can activate multiple motors at once, if the vector is empty the intended action is to drive it as a car
     Direction_t direction; // can be LEFT or RIGHT only if motor_ids is empty, ignored otherwise
     uint8_t speed;       // 0-100, basically the direct pwm ratio
     int angle;           // from -360 to +360, on spot rotation angle
@@ -133,7 +133,7 @@ typedef struct MotorControlPayload
 typedef struct SetConfigPayload
 {
     ConfigFields_t prop; // single prop from ConfigFields_t list
-    void *new_value;   // new value type depends on what's the property
+    int new_value;   // new value type depends on what's the property but transmitted as integer
 } SetConfigPayload_t;
 typedef struct GetConfigPayload
 {

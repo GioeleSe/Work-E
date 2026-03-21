@@ -277,6 +277,31 @@ int get_motor_control_payload(const JsonObject& json_payload, MotorControlPayloa
     return 0;
 }
 
+// parse the payload to the specific move command expected structure
+// return -1 for null or invalid type fields
+int get_move_payload(const JsonObject& json_payload, NovePayload_t* move_payload){
+    JsonVariant destination_x = json_payload["destination_x"];
+    JsonVariant destination_y = json_payload["destination_y"];
+    JsonVariant destination_checkpoint = json_payload["destination_checkpoint"];
+    JsonVariant navigation_type = json_payload["navigation_type"];
+    JsonVariant route_policy = json_payload["route_policy"];
+    
+    JsonVariant int_fields_list[] = {destination_x, destination_y, destination_checkpoint, navigation_type, route_policy};
+    for(JsonVariant field : int_fields_list){
+        if((field.isNull()) || (!field.is<int>())){
+            printf("invalid move field inside payload (expected non-null int)\n");
+            return -1; 
+        }
+    }
+    move_payload->destination_x = destination_x;
+    move_payload->destination_y = destination_y;
+    move_payload->destination_checkpoint = destination_checkpoint;
+    move_payload->navigation_type = navigation_type;
+    move_payload->route_policy = route_policy;
+    return 0;
+}
+
+
 // get the current property value of the robot (functions defined in main_robot)
 // send it back as response packet
 // return -1 if the prop is unrecognized
@@ -527,6 +552,16 @@ int motor_control_handler(uint16_t command_uuid, MotorControlPayload_t* motor_co
     return 0;
 }
 
+// Dummy stub. Move command is not implemented as the required hardware was too complex (to obtain a valid movement sensors framework)
+int move_handler(uint16_t command_uuid, MovePayload_t* move_payload){
+    // Needed segments to handle this command: 
+    //  check the type of command according to the parameters
+    //  fetch of the given checkpoint (checkpoint based only)
+    //  route generation to the given destination according to the navigation type (x-y coordinates) 
+    printf("Received move command with destination (x,y): (%d,%d), (checkpoint): (%d) and parameters:\n\tnavigation type:%d,\t route policy:%d\n", move_payload->destination_x, move_payload->destination_y, move_payload->destination_checkpoint, move_payload->navigation_type, move_payload->route_policy);
+    return 0;
+}
+
 // Deserialize the Json from string argument "packet" and check for presence and type of common fields
 // According to the incoming command the proper handler is called (with the parsed specific payload)
 // Note: handler errors are ignored for now
@@ -561,7 +596,7 @@ int PacketHandler(char* packet, ssize_t packet_size){
     }
     
     int command = check_command(payload);                       
-    switch(command){                                                // TODO: complete all handlers routing
+    switch(command){
         case CommandType_t::CommandType_GET_PROPERTY:
             GetConfigPayload_t get_config_payload;
             if(get_get_config_payload(payload, &get_config_payload) < 0){
@@ -595,15 +630,20 @@ int PacketHandler(char* packet, ssize_t packet_size){
             reset_handler(request_id, &reset_payload);
         break;
         case CommandType_t::CommandType_MOTOR_CONTROL:
-        MotorControlPayload_t motor_control_payload;
+            MotorControlPayload_t motor_control_payload;
             if(get_motor_control_payload(payload, &motor_control_payload) < 0){
                 printf("Invalid payload for motor control command\n");
                 return -1;
             }
-            reset_handler(request_id, &motor_control_payload);
+            motor_control_handler(request_id, &motor_control_payload);
         break;
         case CommandType_t::CommandType_MOVE:
-            // TODO: GOON here ç.ç
+            MovePayload_t move_payload;
+            if(get_move_payload(payload, &move_payload) < 0){
+                printf("Invalid payload for move command\n");
+                return -1;
+            }
+            move_handler(request_id, &move_payload);
         break;
         default:
             printf("unrecognized command value: %d\n", command);

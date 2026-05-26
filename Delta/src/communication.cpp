@@ -18,7 +18,6 @@
 #include "communication.h"
 #include "navigation.h"
 #include "motor_control.h"
-#include "delta.cpp"
 #include <ArduinoJson.h>
 #include <cstring>
 #include <stdlib.h>

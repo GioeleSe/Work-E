@@ -2,6 +2,14 @@
 #define MAIN_ROBOT_H
 #include "robot_server.h"
 
+
+// communication baud for serial speed matching
+#define SERIAL_BAUD 115200
+// ID assigned in docs, ranging from 1 to 4
+#define SELF_ROBOT_ID 1
+
+
+
 // should be defined as a global constant in the robot main code
 int self_prop_get_robot_id();
 
@@ -79,7 +87,7 @@ int self_emergency_stop();
 // Start the specified motor in the wanted direction.
 // For DC motors the activation is given by the driver activation (with a stop callback if duration is set != 0)
 // The DC rotating direction can be Direction_t::Direction_BACKWARD or Direction_t::Direction_FORWARD (using pseudocode this is: (pin A, pin B)=(1,0) or (pin A, pin B)=(0,1))
-// The DC speed can be tuned with a pwm signal on the HIGH ping. This looks something like (pin A, pin B)=(analogWrite((speed*(256))/100),0). That's the mapping of percentage to a pwm value 0-256 (expected parameter for analog write)
+// The DC speed can be tuned with a pwm signal on the HIGH ping. This looks something like (pin A, pin B)=(analogWrite((speed*(255))/100),0). That's the mapping of percentage to a pwm value 0-256 (expected parameter for analog write)
 int self_motion_activate_dc_motor(Motors_t motor_id, Direction_t direction, int speed, int duration);
 
 // Stop the specified motor.

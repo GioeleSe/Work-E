@@ -1,14 +1,3 @@
-#include <stdio.h>
-#include <pthread.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <signal.h>
-#include <typeindex>
-#include <functional>
-#include <map>
-#include <time.h>
-
 #include "udp_client.h"
 #include "udp_server.h"
 #include "robot_server.h"
@@ -19,14 +8,14 @@
 // -------------------------------- main code --------------------------------
 
 void* message_server_thread(void* arg){
-    printf("robot server - udp_server_thread - Server initialized. Calling listening function.\n");
+    platform_print("robot server - udp_server_thread - Server initialized. Calling listening function.\n");
     server_listen_port();                                           // will return only on error or on request
-
-    pthread_exit(NULL);
+    platform_thread_exit();
+    return NULL;
 }
 
 void* message_reader_thread(void* arg){
-    printf("robot server - message_reader_thread - Reader started.\n");
+    platform_print("robot server - message_reader_thread - Reader started.\n");
 
     char message[BUFFER_SIZE];
     int msg_count = 0;
@@ -38,60 +27,61 @@ void* message_reader_thread(void* arg){
         message_length = strlen(message);
         message[message_length] = '\0';
         if((pop_result == 0) && (message_length > 1)){
-            printf("robot server - message_reader_thread - [msg #%d] received: '%s'\n", ++msg_count, message);
+            platform_print("robot server - message_reader_thread - [msg #%d] received: '%s'\n", ++msg_count, message);
             PacketHandler(message, strlen(message));
         } else {
             // buffer empty, avoid busy-waiting
-            sleep(1);
+            platform_sleep_ms(1000);
         }
     }
-    pthread_exit(NULL);
+    platform_thread_exit();
+    return NULL;
 }
 
+#ifdef PLATFORM_LINUX
 void handle_shutdown(int sig){
-    printf("\nrobot server - shutting down\n");
+    platform_print("\nrobot server - shutting down\n");
     if(sig == SIGINT){                                              // "gracefully" (more or less)
-        sem_wait(&udp_server_data.udp_server_buffer.buffer_messages_mutex);
+        platform_sem_wait(&udp_server_data.udp_server_buffer.buffer_messages_mutex);
         udp_server_data.stop_server = 1;
-        sem_post(&udp_server_data.udp_server_buffer.buffer_messages_mutex);
+        platform_sem_post(&udp_server_data.udp_server_buffer.buffer_messages_mutex);
     }else{
         udp_server_data.stop_server = 1;
     }
     exit(0);
 }
+#endif
 
-int main(int argc, char* argv[]){
-    setvbuf(stdout, NULL, _IOLBF, 0);                               // prevent printf buffering
+int RobotStartServer(){
+    platform_init_time();
+    
+#ifdef PLATFORM_LINUX
+    setvbuf(stdout, NULL, _IOLBF, 0);                               // prevent platform_print buffering
     signal(SIGINT, handle_shutdown);
     signal(SIGTERM, handle_shutdown);
+#endif
 
-    pthread_t reader_tid, server_tid;
-    pthread_attr_t reader_pt_attr, server_pt_attr;
+    platform_thread_t reader_tid, server_tid;
     server_init();
 
-    pthread_attr_init(&reader_pt_attr);
-    if(pthread_create(&reader_tid, NULL, message_reader_thread, NULL) != 0){
-        printf("robot server - main - Failed to create reader thread.\n");
-        pthread_attr_destroy(&reader_pt_attr);
+    if(platform_thread_create(&reader_tid, message_reader_thread, NULL, "msg_reader") != 0){
+        platform_print("robot server - RobotStartServer - Failed to create reader thread.\n");
         return -1;
-    }else{
-        printf("robot server - main - Reader thread created.\n");
     }
-
-    pthread_attr_init(&server_pt_attr);
-    if(pthread_create(&server_tid, NULL, message_server_thread, NULL) != 0){
-        printf("robot server - main - Failed to create server thread.\n");
-        pthread_attr_destroy(&server_pt_attr);
+    if(platform_thread_create(&reader_tid, message_reader_thread, NULL, "msg_reader") != 0){
+        platform_print("robot server - RobotStartServer - Failed to create reader thread.\n");
         return -1;
-    }else{
-        printf("robot server - main - Server thread created.\n");
     }
-
-  
-    pthread_join(server_tid, NULL);
-    pthread_join(reader_tid, NULL);
-    pthread_attr_destroy(&server_pt_attr);
-    pthread_attr_destroy(&reader_pt_attr);
+    platform_print("robot server - RobotStartServer - Reader thread created.\n");
+ 
+    if(platform_thread_create(&server_tid, message_server_thread, NULL, "msg_server") != 0){
+        platform_print("robot server - RobotStartServer - Failed to create server thread.\n");
+        return -1;
+    }
+    platform_print("robot server - RobotStartServer - Server thread created.\n");
+ 
+    platform_thread_join(server_tid);
+    platform_thread_join(reader_tid);
     return 0;
 }
 
@@ -118,15 +108,16 @@ int check_fields(const JsonDocument& json_doc){
     for (auto const& field_data : expected_fields){
         JsonVariant field_val = json_doc[field_data.name];
         if(field_val.isNull()){
-            printf("missing field %s in json packet\n", field_data.name);
+            platform_print("missing field %s in json packet\n", field_data.name);
             return -1;
         }else{
             if(!field_data.check(field_val)){
-                printf("wrong type of field %s in json packet\n", field_data.name);
+                platform_print("wrong type of field %s in json packet\n", field_data.name);
                 return -1;
             }
         }
     }
+    return 0;
 }
 
 // check for command-type message (== assert "message_type" = 0)
@@ -134,7 +125,7 @@ int check_fields(const JsonDocument& json_doc){
 int check_command(const JsonObject& json_payload){
     JsonVariant payload_command = json_payload["command"];
     if((payload_command.isNull()) || !(payload_command.is<int>())){
-        printf("invalid command field inside payload (expected non-null integer)\n");
+        platform_print("invalid command field inside payload (expected non-null integer)\n");
         return -1;
     }
     int command_val = payload_command.as<int>();
@@ -150,7 +141,7 @@ int check_command(const JsonObject& json_payload){
 void set_message_common_headers(const JsonObject& reply_doc){
     reply_doc["protocol"] = ROBOT_NET_PROTOCOL;
     reply_doc["robot_id"] = self_prop_get_robot_id();
-    reply_doc["request_uui"] = (uint16_t)(rand()%65535);
+    reply_doc["request_uuid"] = (uint16_t)(rand()%65535);
     reply_doc["mode"] = (int)MessageMode_t::MessageMode_MANUAL;
     reply_doc["timestamp"] = time(NULL);
 }
@@ -159,12 +150,12 @@ void set_message_common_headers(const JsonObject& reply_doc){
 int get_get_config_payload( const JsonObject& json_payload, GetConfigPayload_t* get_config_payload){
     JsonVariant prop_name = json_payload["prop"];
     if((prop_name.isNull()) || !(prop_name.is<int>())){
-        printf("invalid property field inside payload (expected non-null integer)\n");
+        platform_print("invalid property field inside payload (expected non-null integer)\n");
         return -1;
     }
     int prop_name_int = prop_name.as<int>();
     if(prop_name_int < 0){
-        printf("unrecognized value for prop (configfields) value: %d\n", prop_name_int);
+        platform_print("unrecognized value for prop (configfields) value: %d\n", prop_name_int);
         return -1;
     }
     get_config_payload->prop = (ConfigFields_t)prop_name_int;
@@ -178,21 +169,21 @@ int get_set_config_payload( const JsonObject& json_payload, SetConfigPayload_t* 
     JsonVariant prop_name = json_payload["prop"];
     JsonVariant prop_value = json_payload["new_value"];
     if((prop_name.isNull()) || !(prop_name.is<int>())){
-        printf("invalid property field inside payload (expected non-null integer)\n");
+        platform_print("invalid property field inside payload (expected non-null integer)\n");
         return -1;
     }
     if((prop_value.isNull()) || !(prop_value.is<int>())){
-        printf("invalid property value field inside payload (expected non-null integer)\n");
+        platform_print("invalid property value field inside payload (expected non-null integer)\n");
         return -1;
     }
     int prop_name_int = prop_name.as<int>();
     int prop_value_int = prop_value.as<int>();
     if(prop_name_int < 0){                                          // prop value is allowed to be negative (hence not checked here)
-        printf("unrecognized value for prop (configfields) value: %d\n", prop_name_int);
+        platform_print("unrecognized value for prop (configfields) value: %d\n", prop_name_int);
         return -1;
     }
     set_config_payload->prop = (ConfigFields_t)prop_name_int;
-    set_config_payload->new_value = (int)(prop_value);
+    set_config_payload->new_value = prop_value_int;
     return 0;
 }
 
@@ -201,11 +192,12 @@ int get_set_config_payload( const JsonObject& json_payload, SetConfigPayload_t* 
 int get_reset_payload(const JsonObject& json_payload, ResetPayload_t* reset_payload){
     JsonVariant reset_keyword = json_payload["reset"];
     if((reset_keyword.isNull()) || !(reset_keyword.is<const char*>())){
-        printf("invalid reset field inside payload (expected non-null string)\n");
+        platform_print("invalid reset field inside payload (expected non-null string)\n");
         return -1;
     }
     const char* reset_keyword_str = reset_keyword.as<const char*>();
     strncpy(reset_payload->reset, reset_keyword_str, strlen(reset_keyword_str));                    // no others length check measures for now, C trust @.@ 
+    reset_payload->reset[sizeof(reset_payload->reset) - 1] = '\0';
     return 0;
 }
 
@@ -214,11 +206,12 @@ int get_reset_payload(const JsonObject& json_payload, ResetPayload_t* reset_payl
 int get_emergency_stop_payload(const JsonObject& json_payload, EmergencyStopPayload_t* emergency_stop_payload) {
     JsonVariant emergency_stop_keyword = json_payload["stop"];
     if((emergency_stop_keyword.isNull()) || !(emergency_stop_keyword.is<const char*>())){
-        printf("invalid emergency_stop field inside payload (expected non-null string)\n");
+        platform_print("invalid emergency_stop field inside payload (expected non-null string)\n");
         return -1;
     }
     const char* emergency_stop_keyword_str = emergency_stop_keyword.as<const char*>();
     strncpy(emergency_stop_payload->stop, emergency_stop_keyword_str, strlen(emergency_stop_keyword_str));
+    esp->stop[sizeof(esp->stop) - 1] = '\0';
     return 0;
 }
 
@@ -247,17 +240,17 @@ int get_motor_control_payload(const JsonObject& json_payload, MotorControlPayloa
     JsonVariant int_fields_list[] = {direction, speed, angle, duration_ms}; // motor_id_list is array of int
     for(JsonVariant field : int_fields_list){
         if((field.isNull()) || (!field.is<int>())){
-            printf("invalid motor_control field inside payload (expected non-null int)\n");
+            platform_print("invalid motor_control field inside payload (expected non-null int)\n");
             return -1; 
         }
     }
     if((motor_id_list.isNull()) || !(motor_id_list.is<JsonArray>())){
-        printf("invalid motor_control field inside payload (expected non-null int array)\n");
+        platform_print("invalid motor_control field inside payload (expected non-null int array)\n");
         return -1; 
     }
     for (JsonVariant motor_id : motor_id_list.as<JsonArray>()) {
         if (!motor_id.is<int>()) {
-            printf("invalid motor_control field inside payload (expected array of int)\n");
+            platform_print("invalid motor_control field inside payload (expected array of int)\n");
             return -1;
         }
     }
@@ -270,16 +263,16 @@ int get_motor_control_payload(const JsonObject& json_payload, MotorControlPayloa
     for(int i = 0; i < (array_size); i++){
         motor_control_payload->motor_ids[i] = (Motors_t)motor_id_list_array[i].as<int>();           // the terminal value must be inserted to understand the actual size of the list
     }
-    motor_control_payload->direction = direction;
-    motor_control_payload->speed = speed;
-    motor_control_payload->angle = angle;
-    motor_control_payload->duration = duration_ms;
+    motor_control_payload->direction = (Direction_t)direction.as<int>();
+    motor_control_payload->speed = speed.as<int>();
+    motor_control_payload->angle = angle.as<int>();
+    motor_control_payload->duration = duration_ms.as<int>();
     return 0;
 }
 
 // parse the payload to the specific move command expected structure
 // return -1 for null or invalid type fields
-int get_move_payload(const JsonObject& json_payload, NovePayload_t* move_payload){
+int get_move_payload(const JsonObject& json_payload, MovePayload_t* move_payload){
     JsonVariant destination_x = json_payload["destination_x"];
     JsonVariant destination_y = json_payload["destination_y"];
     JsonVariant destination_checkpoint = json_payload["destination_checkpoint"];
@@ -289,15 +282,15 @@ int get_move_payload(const JsonObject& json_payload, NovePayload_t* move_payload
     JsonVariant int_fields_list[] = {destination_x, destination_y, destination_checkpoint, navigation_type, route_policy};
     for(JsonVariant field : int_fields_list){
         if((field.isNull()) || (!field.is<int>())){
-            printf("invalid move field inside payload (expected non-null int)\n");
+            platform_print("invalid move field inside payload (expected non-null int)\n");
             return -1; 
         }
     }
-    move_payload->destination_x = destination_x;
-    move_payload->destination_y = destination_y;
-    move_payload->destination_checkpoint = destination_checkpoint;
-    move_payload->navigation_type = navigation_type;
-    move_payload->route_policy = route_policy;
+    move_payload->destination_x = destination_x.as<int>();
+    move_payload->destination_y = destination_y.as<int>();
+    move_payload->destination_checkpoint = destination_checkpoint.as<int>();
+    move_payload->navigation_type = navigation_type.as<int>();
+    move_payload->route_policy = route_policy.as<int>();
     return 0;
 }
 
@@ -316,28 +309,40 @@ int get_config_handler(uint16_t command_uuid, GetConfigPayload_t* get_config_pay
     switch(get_config_payload->prop){                               // amazing job of vscode shortcuts for these lines
         case ConfigFields_t::ConfigFields_SPEED:
             get_value = self_prop_get_speed();
+        break;
         case ConfigFields_t::ConfigFields_FEEDBACK:
             get_value = self_prop_get_feedback();
+        break;
         case ConfigFields_t::ConfigFields_DEBUG:
             get_value = self_prop_get_debug();
+        break;
         case ConfigFields_t::ConfigFields_NAVIGATION_TYPE:
             get_value = self_prop_get_navigation_type();
+        break;
         case ConfigFields_t::ConfigFields_ROUTE_POLICY:
             get_value = self_prop_get_route_policy();
+        break;
         case ConfigFields_t::ConfigFields_RADAR:
             get_value = self_prop_get_radar();
+        break;
         case ConfigFields_t::ConfigFields_SCREEN:
             get_value = self_prop_get_screen();
+        break;
         case ConfigFields_t::ConfigFields_OBSTACLE_CLEANER:
             get_value = self_prop_get_obstacle_cleaner();
+        break;
         case ConfigFields_t::ConfigFields_OBJECT_LOADER:
             get_value = self_prop_get_object_loader();
-            case ConfigFields_t::ConfigFields_OBJECT_UNLOADER:
+        break;
+        case ConfigFields_t::ConfigFields_OBJECT_UNLOADER:
             get_value = self_prop_get_object_unloader();
-        case ConfigFields_t::ConfigFields_OBJECT_COMPACTER:
+        break;
+        case
+            ConfigFields_t::ConfigFields_OBJECT_COMPACTER:
             get_value = self_prop_get_object_compacter();
+        break;
         default:
-            printf("unrecognized value for prop (configfields) value: %d\n", get_config_payload->prop);
+            platform_print("unrecognized value for prop (configfields) value: %d\n", get_config_payload->prop);
             reply_packet["payload"]["status"] = ActionResult_t::ActionResult_FAILURE;               // consume here the error by setting a "failure warning" message back ("value" will be -1)
         break;
     }
@@ -363,28 +368,39 @@ int set_config_handler(uint16_t command_uuid, SetConfigPayload_t* set_config_pay
     switch(set_config_payload->prop){
         case ConfigFields_t::ConfigFields_SPEED:
             self_prop_set_speed(int_new_value);
+        break;
         case ConfigFields_t::ConfigFields_FEEDBACK:
             self_prop_set_feedback(int_new_value);
+        break;
         case ConfigFields_t::ConfigFields_DEBUG:
             self_prop_set_debug(int_new_value);
+        break;
         case ConfigFields_t::ConfigFields_NAVIGATION_TYPE:
             self_prop_set_navigation_type(int_new_value);
+        break;
         case ConfigFields_t::ConfigFields_ROUTE_POLICY:
             self_prop_set_route_policy(int_new_value);
+        break;
         case ConfigFields_t::ConfigFields_RADAR:
             self_prop_set_radar(int_new_value);
+        break;
         case ConfigFields_t::ConfigFields_SCREEN:
             self_prop_set_screen(int_new_value);
+        break;
         case ConfigFields_t::ConfigFields_OBSTACLE_CLEANER:
             self_prop_set_obstacle_cleaner(int_new_value);
+        break;
         case ConfigFields_t::ConfigFields_OBJECT_LOADER:
             self_prop_set_object_loader(int_new_value);
-            case ConfigFields_t::ConfigFields_OBJECT_UNLOADER:
+            break;
+        case ConfigFields_t::ConfigFields_OBJECT_UNLOADER:
             self_prop_set_object_unloader(int_new_value);
+        break;
         case ConfigFields_t::ConfigFields_OBJECT_COMPACTER:
             self_prop_set_object_compacter(int_new_value);
+        break;
         default:
-            printf("unrecognized value for prop (configfields) value: %d. Wanted (new) int value: %d\n", set_config_payload->prop, int_new_value);
+            platform_print("unrecognized value for prop (configfields) value: %d. Wanted (new) int value: %d\n", set_config_payload->prop, int_new_value);
             reply_packet["payload"]["status"] = ActionResult_t::ActionResult_FAILURE;               // consume here the error by setting a "failure warning" message back
         break;
     }
@@ -407,7 +423,7 @@ int reset_handler(uint16_t command_uuid, ResetPayload_t* reset_payload){
 
     if(strncmp(reset_payload->reset, "reset", strlen("reset")) != 0){
         // send back a failure feedback (expected "reset" keyword as unique field with same key and val)
-        printf("unrecognized value for reset command: '%s'. Expected string: 'reset'\n",reset_payload->reset);
+        platform_print("unrecognized value for reset command: '%s'. Expected string: 'reset'\n",reset_payload->reset);
         error_feedback = 1;
     }else{
         // call the main_robot function self_get_robot_status() to get an index of the enum RobotState_t
@@ -415,14 +431,14 @@ int reset_handler(uint16_t command_uuid, ResetPayload_t* reset_payload){
         // finally call the main_robot functions self_hard_reset() or self_soft_reset() 
         RobotState_t current_robot_state = (RobotState_t)self_prop_get_robot_state();
         switch(current_robot_state){
-            RobotState_ERR:
-                printf("calling soft_reset function ... \n");
+            case RobotState_t::RobotState_ERR:
+                platform_print("calling soft_reset ...\n");
                 self_soft_reset();
                 break;
-            RobotState_BUSY:
-            RobotState_IDLE:
+            case RobotState_t::RobotState_BUSY:
+            case RobotState_t::RobotState_IDLE:
             default:                                                // unrecognized robot state triggers an hard reset
-                printf("calling hard_reset function ... \n");
+                platform_print("calling hard_reset function ... \n");
                 self_hard_reset();
                 break;
         }
@@ -442,7 +458,7 @@ int emergency_stop_handler(uint16_t command_uuid, EmergencyStopPayload_t* emerge
     reply_packet["request_uuid"] = command_uuid;
     reply_packet["payload"]["status"] = ActionResult_t::ActionResult_SUCCESS;
     
-    printf("calling emergency_stop function ... \n");
+    platform_print("calling emergency_stop function ... \n");
     self_emergency_stop();
 
     char reply_packet_serialized[BUFFER_SIZE];
@@ -536,6 +552,7 @@ int motor_control_handler(uint16_t command_uuid, MotorControlPayload_t* motor_co
                         }
                     }
                 }
+                motor_id = motor_control_payload->motor_ids[++index];
             }
         }
     }
@@ -546,6 +563,10 @@ int motor_control_handler(uint16_t command_uuid, MotorControlPayload_t* motor_co
         strncpy(feedback_msg.error_message, TASK_DONE_MSG, strlen(TASK_DONE_MSG));
     }
         
+    reply_packet["payload"]["status"] = feedback_msg.status;
+    reply_packet["payload"]["error_code"] = feedback_msg.error_code;
+    reply_packet["payload"]["error_message"] = feedback_msg.error_message;
+
     char reply_packet_serialized[BUFFER_SIZE];
     ssize_t reply_packet_serialized_size = serializeJson(reply_packet, reply_packet_serialized);
     client_send_packet(reply_packet_serialized, reply_packet_serialized_size);
@@ -558,7 +579,7 @@ int move_handler(uint16_t command_uuid, MovePayload_t* move_payload){
     //  check the type of command according to the parameters
     //  fetch of the given checkpoint (checkpoint based only)
     //  route generation to the given destination according to the navigation type (x-y coordinates) 
-    printf("Received move command with destination (x,y): (%d,%d), (checkpoint): (%d) and parameters:\n\tnavigation type:%d,\t route policy:%d\n", move_payload->destination_x, move_payload->destination_y, move_payload->destination_checkpoint, move_payload->navigation_type, move_payload->route_policy);
+    platform_print("Received move command with destination (x,y): (%d,%d), (checkpoint): (%d) and parameters:\n\tnavigation type:%d,\t route policy:%d\n", move_payload->destination_x, move_payload->destination_y, move_payload->destination_checkpoint, move_payload->navigation_type, move_payload->route_policy);
     return 0;
 }
 
@@ -567,17 +588,17 @@ int move_handler(uint16_t command_uuid, MovePayload_t* move_payload){
 // Note: handler errors are ignored for now
 int PacketHandler(char* packet, ssize_t packet_size){
     if (packet == nullptr || packet_size <= 0) {
-        printf("PacketHandler: invalid packet pointer\n");
+        platform_print("PacketHandler: invalid packet pointer\n");
         return -1;
     }
 
     JsonDocument json_doc;
     DeserializationError json_doc_error = deserializeJson(json_doc, packet, packet_size);
     if (json_doc_error) {
-        printf("deserializeJson() returned %s\n", json_doc_error.c_str());
+        platform_print("deserializeJson() returned %s\n", json_doc_error.c_str());
         return -1;
     }
-    if(!check_fields(json_doc)){
+    if(check_fields(json_doc)<0){
         return -1;
     }
     
@@ -590,7 +611,7 @@ int PacketHandler(char* packet, ssize_t packet_size){
     long timestamp = json_doc["timestamp"].as<long>();
     
     if(message_type != 0){
-        printf("invalid command value (expected value: 0)\n");
+        platform_print("invalid command value (expected value: 0)\n");
         return -1;
 
     }
@@ -600,7 +621,7 @@ int PacketHandler(char* packet, ssize_t packet_size){
         case CommandType_t::CommandType_GET_PROPERTY:
             GetConfigPayload_t get_config_payload;
             if(get_get_config_payload(payload, &get_config_payload) < 0){
-                printf("Invalid payload for get_config command\n");
+                platform_print("Invalid payload for get_config command\n");
                 return -1;
             }
             get_config_handler(request_id, &get_config_payload);
@@ -608,7 +629,7 @@ int PacketHandler(char* packet, ssize_t packet_size){
         case CommandType_t::CommandType_SET_PROPERTY:
             SetConfigPayload_t set_config_payload;
             if(get_set_config_payload(payload, &set_config_payload) < 0){
-                printf("Invalid payload for set_config command\n");
+                platform_print("Invalid payload for set_config command\n");
                 return -1;
             }    
             set_config_handler(request_id, &set_config_payload);
@@ -616,7 +637,7 @@ int PacketHandler(char* packet, ssize_t packet_size){
         case CommandType_t::CommandType_EMERGENCY_STOP:
             EmergencyStopPayload_t emergency_stop_payload;
             if(get_emergency_stop_payload(payload, &emergency_stop_payload) < 0){
-                printf("Invalid payload for emergency_stop command\n");
+                platform_print("Invalid payload for emergency_stop command\n");
                 return -1;
             }    
             emergency_stop_handler(request_id, &emergency_stop_payload);
@@ -624,7 +645,7 @@ int PacketHandler(char* packet, ssize_t packet_size){
         case CommandType_t::CommandType_RESET:
             ResetPayload_t reset_payload;
             if(get_reset_payload(payload, &reset_payload) < 0){
-                printf("Invalid payload for reset command\n");
+                platform_print("Invalid payload for reset command\n");
                 return -1;
             }    
             reset_handler(request_id, &reset_payload);
@@ -632,7 +653,7 @@ int PacketHandler(char* packet, ssize_t packet_size){
         case CommandType_t::CommandType_MOTOR_CONTROL:
             MotorControlPayload_t motor_control_payload;
             if(get_motor_control_payload(payload, &motor_control_payload) < 0){
-                printf("Invalid payload for motor control command\n");
+                platform_print("Invalid payload for motor control command\n");
                 return -1;
             }
             motor_control_handler(request_id, &motor_control_payload);
@@ -640,16 +661,15 @@ int PacketHandler(char* packet, ssize_t packet_size){
         case CommandType_t::CommandType_MOVE:
             MovePayload_t move_payload;
             if(get_move_payload(payload, &move_payload) < 0){
-                printf("Invalid payload for move command\n");
+                platform_print("Invalid payload for move command\n");
                 return -1;
             }
             move_handler(request_id, &move_payload);
         break;
         default:
-            printf("unrecognized command value: %d\n", command);
+            platform_print("unrecognized command value: %d\n", command);
             return -1;
         break;
     }
-
     return 0;
 }

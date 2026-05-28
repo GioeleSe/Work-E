@@ -1,7 +1,7 @@
 #ifndef ROBOT_SERVER_H
 #define ROBOT_SERVER_H
 
-#include "ArduinoJson.h"
+#include "ArduinoJson.h"                                            // direclty installed as local self-contained lib
 #include "udp_server.h"
 
 #define PROTOCOL "robot-net/1.0"
@@ -182,7 +182,7 @@ int PacketHandler(char* packet, ssize_t packet_size);
 // Decide which action to perform according to the current state and the received Move command
 int MoveHandler(MovePayload_t data);
 
-// Decide which action to perform according to the current state and the received Motor Control command
+// Decide which action to perform according to the current state and the received Motor Control commandb
 int MotorControlHandler(MotorControlPayload_t data);
 
 // Decide which action to perform according to the current state and the received Set Config command
@@ -196,5 +196,8 @@ int EmergencyStopHandler(EmergencyStopPayload_t data);
 
 // Decide which action to perform according to the current state and the received Reset command
 int ResetHandler(ResetPayload_t data);
+
+// Start this server to listen for packets and managing commands
+int RobotStartServer();
 
 #endif

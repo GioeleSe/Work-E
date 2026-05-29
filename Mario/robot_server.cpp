@@ -68,10 +68,6 @@ int RobotStartServer(){
         platform_print("robot server - RobotStartServer - Failed to create reader thread.\n");
         return -1;
     }
-    if(platform_thread_create(&reader_tid, message_reader_thread, NULL, "msg_reader") != 0){
-        platform_print("robot server - RobotStartServer - Failed to create reader thread.\n");
-        return -1;
-    }
     platform_print("robot server - RobotStartServer - Reader thread created.\n");
  
     if(platform_thread_create(&server_tid, message_server_thread, NULL, "msg_server") != 0){

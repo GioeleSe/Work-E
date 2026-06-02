@@ -3,11 +3,13 @@
 #include "UDP_Client.h"
 #include "UDP_Server.h"
 
+Beta self;
+
 hw_timer_t *heartbeatTimer = NULL;
 
 void setupMotors();
-void setupHeartbeatTimer();
 void setupWiFi();
+void setupHeartbeatTimer();
 void IRAM_ATTR onHeartbeatTimer();
 
 void setup()
@@ -26,7 +28,7 @@ void setup()
     // Setup WiFi connection and communication with the server
     setupWiFi();
     connectToServer();
-    // startUDPServer();
+    startUDPServer();
 
     //todo initialize self
 }
@@ -34,7 +36,7 @@ void setup()
 void loop()
 {
     // construct message types based on needs and events, then, sendMessage()
-    //? -> switch case?
+    //?? -> switch case?
 }
 
 void setupMotors()
@@ -52,17 +54,10 @@ void setupMotors()
     digitalWrite(MOTOR_2B_PIN, LOW);
 }
 
-void setupHeartbeatTimer()
-{
-    heartbeatTimer = timerBegin(0, 80, true); // Timer 0, Clock divider 80
-    timerAttachInterrupt(heartbeatTimer, &onHeartbeatTimer, true);
-    timerAlarmWrite(heartbeatTimer, 2000000, true); // Trigger every 2 seconds
-    timerAlarmEnable(heartbeatTimer);
-}
-
 void setupWiFi()
 {
     WiFi.mode(WIFI_STA);
+    // WiFi.begin(wifi_ssid, wifi_password);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     
     Serial.println("Connecting to WiFi");
@@ -79,12 +74,20 @@ void setupWiFi()
     Serial.println(WiFi.localIP());
 }
 
+void setupHeartbeatTimer()
+{
+    heartbeatTimer = timerBegin(0, 80, true); // Timer 0, Clock divider 80
+    timerAttachInterrupt(heartbeatTimer, &onHeartbeatTimer, true);
+    timerAlarmWrite(heartbeatTimer, 2000000, true); // Trigger every 2 seconds
+    timerAlarmEnable(heartbeatTimer);
+}
+
 /// Heartbeat timer ISR
 void IRAM_ATTR onHeartbeatTimer()
 {
-    checkConnection();
+   checkConnection();
 
-    //? identify robot state, send heartbeat
-    sendMessage(heartbeatMessage());
-    return;
+   // identify robot state, send heartbeat
+   sendMessage(heartbeatMessage());
+   return;
 }

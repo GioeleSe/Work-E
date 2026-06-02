@@ -2,7 +2,7 @@
 
 AsyncUDP clientUDP;
 
-//? add a ConnectionStats struct to keep track of relevant information?
+//?? add a ConnectionStats struct to keep track of relevant information?
 
 void connectToServer()
 {
@@ -30,7 +30,7 @@ void connectToServer()
 /// Serialize and send message to server
 void sendMessage(JsonDocument message)
 {
-    //! enclose message in envelope structure
+    //!! enclose message in envelope structure
     String jsonString;
     serializeJson(message, jsonString);
 
@@ -38,8 +38,8 @@ void sendMessage(JsonDocument message)
     clientUDP.write((uint8_t *)jsonString.c_str(), jsonString.length());
 }
 
-//? states and other relevant info will be passed as arguments to these functions
-//? almost everything here is a placeholder
+//?? states and other relevant info will be passed as arguments to these functions
+//?? almost everything here is a placeholder
 JsonDocument heartbeatMessage()
 {
     JsonDocument doc;

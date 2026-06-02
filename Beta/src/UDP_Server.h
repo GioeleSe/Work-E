@@ -6,43 +6,46 @@
 
 using namespace std;
 
+//#include <ESP8266WiFi.h>
+//#include <ESPAsyncUDP.h>
 #include <WiFi.h>
 #include <AsyncUDP.h>
 #include <ArduinoJson.h>
 #include "Beta.h"
 
-#define PROTOCOL_VER "robot-net/1.0"
-
 // WiFi information
 #define WIFI_SSID "vomi tino"
 #define WIFI_PASSWORD "c0nn3tt1t1"
 
+#define PROTOCOL_VER "robot-net/1.0"
+
 // Server's local port
 #define LOCAL_SERVER_PORT 8000
 
-//* All commands generate a Feedback message as a response from the MCU
-
-typedef struct IncomingMessageStructure
-{
-    const char *protocol;
-    CommandType messageType;
-    uint8_t robotID;
-    uint16_t requestID;
-    NavigationType mode;
-    uint32_t timestamp;
-    //! payload
-} IncomingMessageStructure;
+//** All commands generate a Feedback message as a response from the MCU
 
 // Command types that can be received from server
 typedef enum CommandType
 {
-    MOVE, //! NO, refers to autonomous movement
-    MOTOR_CONTROL,
-    SET_PROPERTY,
-    GET_PROPERTY,
-    EMERGENCY_STOP,
-    RESET,
+    CommandType_GET_PROPERTY,
+    CommandType_SET_PROPERTY,
+    CommandType_MOTOR_CONTROL,
+    CommandType_MOVE, //! refers to autonomous movement
+    CommandType_EMERGENCY_STOP,
+    CommandType_RESET,
 } CommandType;
+
+//?? Is this really necessary?
+// typedef struct IncomingMessageStructure
+// {
+//     const char *protocol;
+//     CommandType messageType;
+//     uint8_t robotID;
+//     uint16_t requestID;
+//     NavigationType mode;
+//     uint32_t timestamp;
+//     void* payload;
+// } IncomingMessageStructure;
 
 typedef struct MotorControlPayload
 {
@@ -53,7 +56,7 @@ typedef struct MotorControlPayload
     uint8_t speed; // Range 0-100
     int angle;     // Range -360 to +360, on-spot rotation
     uint32_t duration;
-};
+} MotorControlPayload;
 
 typedef struct SetPropertyPayload
 {
@@ -71,14 +74,14 @@ typedef struct EmergencyStopPayload
     // See if the "stop" keyword is matched
     // Used to stop any currently running tasks
     const char *stop;
-};
+} EmergencyStopPayload;
 
 typedef struct ResetPayload
 {
     // See if the "reset" keyword is matched
     // Used to reset the board or clear error/emergency stop state
     const char *reset;
-};
+} ResetPayload;
 
 void startUDPServer();
 void handleIncomingPacket(AsyncUDPPacket packet); //! function type likely to be changed

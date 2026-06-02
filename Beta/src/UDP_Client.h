@@ -21,13 +21,15 @@ using namespace std;
 #define SERVER_IP (192, 168, 137, 1)
 #define SERVER_PORT 8000
 
+#define HEARTBEAT_INTERVAL 2000 // Milliseconds
+
 // Possible message types
 typedef enum OutgoingMessageType
 {
     ACTION_FEEDBACK,
     EVENT,
-    DEBUG,
-    ERROR,
+    TYPE_DEBUG,
+    TYPE_ERROR,
     HEARTBEAT,
 } OutgoingMessageType;
 
@@ -39,34 +41,34 @@ typedef struct OutgoingMessageStructure
     OutgoingMessageType messageType;
     uint16_t requestID;
     NavigationType mode;
-    //! payload
     uint32_t timestamp;
+    void* payload;
 } OutgoingMessageStructure;
 
 // todo
 typedef struct ActionFeedbackPayload
 {
-};
+} ActionFeedbackPayload;
 
 typedef struct EventPayload
 {
-};
+} EventPayload;
 
 typedef struct DebugPayload
 {
-};
+} DebugPayload;
 
 typedef struct ErrorPayload
 {
-};
+} ErrorPayload;
 
 typedef struct HeartbeatPayload
 {
-};
+} HeartbeatPayload;
 
 void connectToServer();
 void sendMessage(JsonDocument message);
-//! WOMP WOMP, you have to remake these
+//!! WOMP WOMP, you have to remake these
 JsonDocument heartbeatMessage();
 JsonDocument feedbackMessage();
 JsonDocument eventMessage();

@@ -2,11 +2,12 @@
 #include "UDP_Client.h"
 #include "UDP_Server.h"
 
-Beta self;
-
 // TODO
 // loadPayload()
 // dischargePayload()
+// radar
+// buzzer
+// LED ?
 //? the motor driver also has a FAULT detection pin
 
 /*
@@ -23,11 +24,11 @@ Beta self;
 // Spin the motors!
 /// \param dutyCycle  Percentage of the duty cycle to be used to set PWM (0-100%)
 /// \param dir  Direction of movement
-//! TO BE CHANGED:
-//! move only forwards and backwards, turn to change directions
-//!     stop()
-//!     go()
-//!     turn(LEFT | RIGHT)
+//!! TO BE CHANGED:
+//!! move only forwards and backwards, turn to change directions
+//!!     stop()
+//!!     go()
+//!!     turn(LEFT | RIGHT)
 void move(int dutyCycle, Direction dir)
 {
     int speed = (int)(MAX_SPEED * dutyCycle);
@@ -59,8 +60,8 @@ void move(int dutyCycle, Direction dir)
         // stop();
         break;
     default:
-        //! ERROR
-        //! handle it NOW!!
+        //!! ERROR
+        //!! handle it NOW!!
         break;
     }
 }
@@ -80,7 +81,7 @@ void spinAntiClockwise(int MOTOR_PIN1, int MOTOR_PIN2, int speed)
 }
 
 /// Stops all motors
-//? set low power mode for motors -> here or in main?
+//?? set low power mode for motors -> here or in main?
 void stop()
 {
     analogWrite(MOTOR_1A_PIN, 0);

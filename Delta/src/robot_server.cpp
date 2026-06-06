@@ -54,7 +54,7 @@ void handle_shutdown(int sig){
 
 int RobotStartServer(){
     platform_init_time();
-
+    
 #ifdef PLATFORM_LINUX
     setvbuf(stdout, NULL, _IOLBF, 0);                               // prevent platform_print buffering
     signal(SIGINT, handle_shutdown);
@@ -69,13 +69,13 @@ int RobotStartServer(){
         return -1;
     }
     platform_print("robot server - RobotStartServer - Reader thread created.\n");
-
+ 
     if(platform_thread_create(&server_tid, message_server_thread, NULL, "msg_server") != 0){
         platform_print("robot server - RobotStartServer - Failed to create server thread.\n");
         return -1;
     }
     platform_print("robot server - RobotStartServer - Server thread created.\n");
-
+ 
     platform_thread_join(server_tid);
     platform_thread_join(reader_tid);
     return 0;
@@ -131,7 +131,7 @@ int check_command(const JsonObject& json_payload){
 // set common headers of the message envelope.
 // The mode is set to default manual.
 // Note that:
-//  - message_type is *not* set here
+//  - message_type is *not* set here 
 //  - the timestamp is set here
 //  - the uuid is random, overwrite it to match the command uuid
 void set_message_common_headers(const JsonObject& reply_doc){
@@ -192,7 +192,7 @@ int get_reset_payload(const JsonObject& json_payload, ResetPayload_t* reset_payl
         return -1;
     }
     const char* reset_keyword_str = reset_keyword.as<const char*>();
-    strncpy(reset_payload->reset, reset_keyword_str, strlen(reset_keyword_str));                    // no others length check measures for now, C trust @.@
+    strncpy(reset_payload->reset, reset_keyword_str, strlen(reset_keyword_str));                    // no others length check measures for now, C trust @.@ 
     reset_payload->reset[sizeof(reset_payload->reset) - 1] = '\0';
     return 0;
 }
@@ -207,7 +207,7 @@ int get_emergency_stop_payload(const JsonObject& json_payload, EmergencyStopPayl
     }
     const char* emergency_stop_keyword_str = emergency_stop_keyword.as<const char*>();
     strncpy(emergency_stop_payload->stop, emergency_stop_keyword_str, strlen(emergency_stop_keyword_str));
-    esp->stop[sizeof(esp->stop) - 1] = '\0';
+    emergency_stop_payload->stop[sizeof(emergency_stop_payload->stop) - 1] = '\0';
     return 0;
 }
 
@@ -231,18 +231,18 @@ int get_motor_control_payload(const JsonObject& json_payload, MotorControlPayloa
     JsonVariant speed = json_payload["speed"];
     JsonVariant angle = json_payload["angle"];
     JsonVariant duration_ms = json_payload["duration_ms"];          // 0 as continuous movement
-
+    
     // check existence and type
     JsonVariant int_fields_list[] = {direction, speed, angle, duration_ms}; // motor_id_list is array of int
     for(JsonVariant field : int_fields_list){
         if((field.isNull()) || (!field.is<int>())){
             platform_print("invalid motor_control field inside payload (expected non-null int)\n");
-            return -1;
+            return -1; 
         }
     }
     if((motor_id_list.isNull()) || !(motor_id_list.is<JsonArray>())){
         platform_print("invalid motor_control field inside payload (expected non-null int array)\n");
-        return -1;
+        return -1; 
     }
     for (JsonVariant motor_id : motor_id_list.as<JsonArray>()) {
         if (!motor_id.is<int>()) {
@@ -274,12 +274,12 @@ int get_move_payload(const JsonObject& json_payload, MovePayload_t* move_payload
     JsonVariant destination_checkpoint = json_payload["destination_checkpoint"];
     JsonVariant navigation_type = json_payload["navigation_type"];
     JsonVariant route_policy = json_payload["route_policy"];
-
+    
     JsonVariant int_fields_list[] = {destination_x, destination_y, destination_checkpoint, navigation_type, route_policy};
     for(JsonVariant field : int_fields_list){
         if((field.isNull()) || (!field.is<int>())){
             platform_print("invalid move field inside payload (expected non-null int)\n");
-            return -1;
+            return -1; 
         }
     }
     move_payload->destination_x = destination_x.as<int>();
@@ -300,7 +300,7 @@ int get_config_handler(uint16_t command_uuid, GetConfigPayload_t* get_config_pay
     reply_packet["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
     reply_packet["request_uuid"] = command_uuid;                    // use the same as the command/request so that the server can track the source event for this reply
     reply_packet["payload"]["prop"] = get_config_payload->prop;
-
+    
     int get_value = -1;                                             // default to -1 to signal a potential error
     switch(get_config_payload->prop){                               // amazing job of vscode shortcuts for these lines
         case ConfigFields_t::ConfigFields_SPEED:
@@ -350,7 +350,7 @@ int get_config_handler(uint16_t command_uuid, GetConfigPayload_t* get_config_pay
     return 0;
 }
 
-// call the set function for the correct property to change. The new value is assigned using main_robot functions
+// call the set function for the correct property to change. The new value is assigned using main_robot functions 
 // (any error is consumed with failure feedback)
 int set_config_handler(uint16_t command_uuid, SetConfigPayload_t* set_config_payload){
     JsonObject reply_packet;
@@ -358,9 +358,9 @@ int set_config_handler(uint16_t command_uuid, SetConfigPayload_t* set_config_pay
     reply_packet["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
     reply_packet["request_uuid"] = command_uuid;                    // use the same as the command/request so that the server can track the source event for this reply
     reply_packet["payload"]["status"] = ActionResult_t::ActionResult_SUCCESS;                       // default to success, changed if any later step fails
-
+    
     int int_new_value = (set_config_payload->new_value);   // common copy here as int, for now the only property type (used as enum index)
-
+    
     switch(set_config_payload->prop){
         case ConfigFields_t::ConfigFields_SPEED:
             self_prop_set_speed(int_new_value);
@@ -424,7 +424,7 @@ int reset_handler(uint16_t command_uuid, ResetPayload_t* reset_payload){
     }else{
         // call the main_robot function self_get_robot_status() to get an index of the enum RobotState_t
         // check for which type of activations to call (idle/busy context -> reset the entire board; emergency stop/error -> force a clear of the error state)
-        // finally call the main_robot functions self_hard_reset() or self_soft_reset()
+        // finally call the main_robot functions self_hard_reset() or self_soft_reset() 
         RobotState_t current_robot_state = (RobotState_t)self_prop_get_robot_state();
         switch(current_robot_state){
             case RobotState_t::RobotState_ERR:
@@ -440,7 +440,7 @@ int reset_handler(uint16_t command_uuid, ResetPayload_t* reset_payload){
         }
     }
     reply_packet["payload"]["status"] = (error_feedback)?ActionResult_t::ActionResult_FAILURE:ActionResult_t::ActionResult_SUCCESS;
-
+    
     char reply_packet_serialized[BUFFER_SIZE];
     ssize_t reply_packet_serialized_size = serializeJson(reply_packet, reply_packet_serialized);
     client_send_packet(reply_packet_serialized, reply_packet_serialized_size);
@@ -453,7 +453,7 @@ int emergency_stop_handler(uint16_t command_uuid, EmergencyStopPayload_t* emerge
     reply_packet["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
     reply_packet["request_uuid"] = command_uuid;
     reply_packet["payload"]["status"] = ActionResult_t::ActionResult_SUCCESS;
-
+    
     platform_print("calling emergency_stop function ... \n");
     self_emergency_stop();
 
@@ -472,14 +472,14 @@ int motor_control_handler(uint16_t command_uuid, MotorControlPayload_t* motor_co
     reply_packet["request_uuid"] = command_uuid;
     reply_packet["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
     FeedbackMsg_t feedback_msg;
-
+    
     int route_command = 0;
     int pending_command = 0;
 
     RobotState_t robot_state = (RobotState_t)self_prop_get_robot_state();
     int speed = motor_control_payload->speed;
     int duration = motor_control_payload->duration;
-    int angle = motor_control_payload->angle;
+    int angle = motor_control_payload->angle;    
     Direction_t direction = motor_control_payload->direction;
     switch(robot_state){
         case RobotState_t::RobotState_IDLE:
@@ -504,7 +504,7 @@ int motor_control_handler(uint16_t command_uuid, MotorControlPayload_t* motor_co
             feedback_msg.error_code = ErrorCode_t::ErrorCode_ROBOT_ERROR_STATE;
             feedback_msg.status = ActionResult_t::ActionResult_FAILURE;
             strncpy(feedback_msg.error_message, REFUSE_INTERNAL_ERROR_MSG, strlen(REFUSE_INTERNAL_ERROR_MSG));
-            break;
+            break;            
     }
 
     if(route_command){
@@ -528,7 +528,7 @@ int motor_control_handler(uint16_t command_uuid, MotorControlPayload_t* motor_co
         }else{
             int index = 0;
             Motors_t motor_id = motor_control_payload->motor_ids[index];
-
+            
             while((motor_id != Motors_t::Motors_END_MOT) && (index < MAX_MOTORS_COUNT)){ // start or stop each single motor
                 if(angle != 0){
                     self_motion_steer_servo(motor_id, angle);
@@ -558,7 +558,7 @@ int motor_control_handler(uint16_t command_uuid, MotorControlPayload_t* motor_co
         feedback_msg.status = ActionResult_t::ActionResult_SUCCESS;
         strncpy(feedback_msg.error_message, TASK_DONE_MSG, strlen(TASK_DONE_MSG));
     }
-
+        
     reply_packet["payload"]["status"] = feedback_msg.status;
     reply_packet["payload"]["error_code"] = feedback_msg.error_code;
     reply_packet["payload"]["error_message"] = feedback_msg.error_message;
@@ -571,10 +571,10 @@ int motor_control_handler(uint16_t command_uuid, MotorControlPayload_t* motor_co
 
 // Dummy stub. Move command is not implemented as the required hardware was too complex (to obtain a valid movement sensors framework)
 int move_handler(uint16_t command_uuid, MovePayload_t* move_payload){
-    // Needed segments to handle this command:
+    // Needed segments to handle this command: 
     //  check the type of command according to the parameters
     //  fetch of the given checkpoint (checkpoint based only)
-    //  route generation to the given destination according to the navigation type (x-y coordinates)
+    //  route generation to the given destination according to the navigation type (x-y coordinates) 
     platform_print("Received move command with destination (x,y): (%d,%d), (checkpoint): (%d) and parameters:\n\tnavigation type:%d,\t route policy:%d\n", move_payload->destination_x, move_payload->destination_y, move_payload->destination_checkpoint, move_payload->navigation_type, move_payload->route_policy);
     return 0;
 }
@@ -597,7 +597,7 @@ int PacketHandler(char* packet, ssize_t packet_size){
     if(check_fields(json_doc)<0){
         return -1;
     }
-
+    
     char* protocol = json_doc["protocol"].as<char*>();
     int robot_id = json_doc["robot_id"].as<int>();
     int message_type = json_doc["message_type"].as<int>();
@@ -605,14 +605,14 @@ int PacketHandler(char* packet, ssize_t packet_size){
     int mode = json_doc["mode"].as<int>();
     JsonObject payload = json_doc["payload"].as<JsonObject>();
     long timestamp = json_doc["timestamp"].as<long>();
-
+    
     if(message_type != 0){
         platform_print("invalid command value (expected value: 0)\n");
         return -1;
 
     }
-
-    int command = check_command(payload);
+    
+    int command = check_command(payload);                       
     switch(command){
         case CommandType_t::CommandType_GET_PROPERTY:
             GetConfigPayload_t get_config_payload;
@@ -627,7 +627,7 @@ int PacketHandler(char* packet, ssize_t packet_size){
             if(get_set_config_payload(payload, &set_config_payload) < 0){
                 platform_print("Invalid payload for set_config command\n");
                 return -1;
-            }
+            }    
             set_config_handler(request_id, &set_config_payload);
         break;
         case CommandType_t::CommandType_EMERGENCY_STOP:
@@ -635,7 +635,7 @@ int PacketHandler(char* packet, ssize_t packet_size){
             if(get_emergency_stop_payload(payload, &emergency_stop_payload) < 0){
                 platform_print("Invalid payload for emergency_stop command\n");
                 return -1;
-            }
+            }    
             emergency_stop_handler(request_id, &emergency_stop_payload);
         break;
         case CommandType_t::CommandType_RESET:
@@ -643,7 +643,7 @@ int PacketHandler(char* packet, ssize_t packet_size){
             if(get_reset_payload(payload, &reset_payload) < 0){
                 platform_print("Invalid payload for reset command\n");
                 return -1;
-            }
+            }    
             reset_handler(request_id, &reset_payload);
         break;
         case CommandType_t::CommandType_MOTOR_CONTROL:

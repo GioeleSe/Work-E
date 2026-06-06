@@ -2,11 +2,29 @@
 #define MAIN_ROBOT_H
 #include "robot_server.h"
 
-
 // communication baud for serial speed matching
 #define SERIAL_BAUD 115200
 // ID assigned in docs, ranging from 1 to 4
 #define SELF_ROBOT_ID 1
+
+// Hardware pin assignments
+#define PIN_BUZZER              4
+#define PIN_RADAR_SERVO         13
+#define PIN_RADAR_SENSOR_SDA    26
+#define PIN_RADAR_SENSOR_SCL    27
+#define PIN_LED_GREEN           14
+#define PIN_LED_RED             15
+#define PIN_OLED_SDA            33
+#define PIN_OLED_SCL            32
+#define PIN_WHEELS_DRIVER_SLEEP 16
+#define PIN_WHEELS_DRIVER_IN1   25
+#define PIN_WHEELS_DRIVER_IN2   23
+#define PIN_WHEELS_DRIVER_IN3   22
+#define PIN_WHEELS_DRIVER_IN4   21
+#define PIN_TRUNK_DRIVER_SLEEP  17
+#define PIN_TRUNK_DRIVER_IN1    19
+#define PIN_TRUNK_DRIVER_IN2    18
+#define PIN_TRUNK_SWITCH        34
 
 
 

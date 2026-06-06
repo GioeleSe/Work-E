@@ -1,67 +1,44 @@
-// Motor test entry copied from test/motor_control_test.cpp
+// On-device motor test — calls main_robot motion functions directly, no UDP stack needed.
+// Build and upload: pio run -e motor_test -t upload
+// Open Serial at 115200 to observe steps.
+
 #include <Arduino.h>
-#include <ArduinoJson.h>
-#include "communication.h"
-#include "motor_control.h"
-static void applyMotorCommand(Direction dir, uint8_t speed, uint32_t durationMs){
-  MotorControlPayload mcp;
-  mcp.motor_ids = nullptr; // no explicit motor ids -> car mode
-  mcp.direction = dir;
-  mcp.speed = speed;
-  mcp.angle = 0;
-  mcp.duration = durationMs;
+#include "main_robot.h"
 
-  Serial.printf("Driving motors: dir=%d speed=%u duration=%lu\n",
-                (int)dir, speed, (unsigned long)durationMs);
-  executeMotorControl(mcp);
-  delay(durationMs);
+extern SemaphoreHandle_t self_robot_state_sem;
 
-  // stop after each command for safety
-  MotorControlPayload stop = mcp;
-  stop.speed = 0;
-  stop.direction = STOP;
-  stop.duration = 0;
-  executeMotorControl(stop);
-  delay(200);
+void setup() {
+    Serial.begin(SERIAL_BAUD);
+    delay(200);
+
+    self_robot_state_sem = xSemaphoreCreateMutex();
+
+    // Wake the wheel motor driver and attach PWM channels
+    pinMode(PIN_WHEELS_DRIVER_SLEEP, OUTPUT);
+    digitalWrite(PIN_WHEELS_DRIVER_SLEEP, HIGH);
+    ledcAttach(PIN_WHEELS_DRIVER_IN1, 1000, 8);
+    ledcAttach(PIN_WHEELS_DRIVER_IN2, 1000, 8);
+    ledcAttach(PIN_WHEELS_DRIVER_IN3, 1000, 8);
+    ledcAttach(PIN_WHEELS_DRIVER_IN4, 1000, 8);
+
+    self_motion_car_stop();
+    Serial.println("Motor test ready — forward/stop/backward loop");
 }
 
-void setup(){
-  Serial.begin(115200);
-  delay(200);
-  Serial.println("Starting motor control forward/backward loop test");
+void loop() {
+    Serial.println("Forward 1s");
+    self_motion_car_proceed(Direction_FORWARD);
+    delay(1000);
 
-  initMotors();
-}
+    Serial.println("Stop 500ms");
+    self_motion_car_stop();
+    delay(500);
 
-void loop(){
-  // Drive forward 1s
-  MotorControlPayload mcp;
-  mcp.motor_ids = nullptr;
-  mcp.direction = FORWARD;
-  mcp.speed = 80;
-  mcp.angle = 0;
-  mcp.duration = 0;
-  Serial.println("Forward 1s");
-  executeMotorControl(mcp);
-  delay(1000);
+    Serial.println("Backward 1s");
+    self_motion_car_proceed(Direction_BACKWARD);
+    delay(1000);
 
-  // Stop / pause 1s
-  Serial.println("Pause 1s");
-  MotorControlPayload stop = mcp;
-  stop.speed = 0;
-  stop.direction = STOP;
-  executeMotorControl(stop);
-  delay(1000);
-
-  // Drive backward 1s
-  Serial.println("Backward 1s");
-  mcp.direction = BACKWARD;
-  mcp.speed = 80;
-  executeMotorControl(mcp);
-  delay(1000);
-
-  // Stop / pause 1s
-  Serial.println("Pause 1s");
-  executeMotorControl(stop);
-  delay(1000);
+    Serial.println("Stop 500ms");
+    self_motion_car_stop();
+    delay(500);
 }

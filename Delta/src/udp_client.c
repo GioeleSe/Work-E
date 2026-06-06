@@ -1,203 +1,81 @@
-#ifndef ROBOT_SERVER_H
-#define ROBOT_SERVER_H
+#include "common_platform_abstr.h"
+#include "udp_client.h"
 
-#include "ArduinoJson.h"                                            // direclty installed as local self-contained lib
-#include "udp_server.h"
+platform_socket_fd_t socket_init(){
+    platform_socket_fd_t sockfd;
+    sockfd = platform_socket_create_udp();
+    if (sockfd < 0) {
+        platform_print("client - socket creation failed");
+        // exit(EXIT_FAILURE);
+        platform_panic(-1);
+    }else{
+        platform_print("client - socket created\n");
+    }
+    return sockfd;
+}
 
-#define PROTOCOL "robot-net/1.0"
-#define MAX_MOTORS_COUNT 8                                          // avoid heap allocation, preallocate full size (int) array
-#define MAX_CHAR_MSG 40
-#define REFUSE_BUSY_TASK 1                                          // if 1 refuse new task while robot is busy replying with RobotState_BUSY
-#define REFUSE_BUSY_TASK_MSG "Task refused cause robot was busy"
-#define REFUSE_INTERNAL_ERROR_MSG "Task refused cause robot was confused"
-#define TASK_DONE_MSG "Task done successfully c:"
+int socket_send_message(const platform_socket_fd_t sockfd, const char* msg, const platform_ssize_t msg_size, const platform_sockaddr_t* server_info, platform_socklen_t* size_of_server_info){
+    int send_result = platform_socket_sendto(sockfd, msg, msg_size, 0, server_info, *size_of_server_info);
+    platform_print("client - message sent.\n");
+    return send_result;
+}
 
-typedef enum{
-    ErrorCode_NO_ERROR = 0,
-    ErrorCode_ROBOT_ERROR_STATE = 100,
-    ErrorCode_ROBOT_BUSY_STATE = 200                                // command ignored cause it was busy
-}ErrorCode_t;
-typedef enum{
-    RobotState_IDLE = 0,
-    RobotState_BUSY = 1,
-    RobotState_ERR = 2
-}RobotState_t;
-typedef enum MessageMode
-{
-    MessageMode_MANUAL = 0,
-    MessageMode_AUTO = 1
-} MessageMode_t;
-typedef enum MessageType
-{
-    MessageType_COMMAND = 0,
-    MessageType_HEARTBEAT = 1,
-    MessageType_EVENT = 2,
-    MessageType_PROPERTY = 3,
-    MessageType_FEEDBACK = 4,
-    MessageType_DEBUG = 5,
-    MessageType_ERROR = 6
+platform_ssize_t socket_get_message(const platform_socket_fd_t sockfd, char* buffer, const int buffer_size, platform_sockaddr_t* server_info, platform_socklen_t* size_of_server_info){
+    platform_ssize_t n = platform_socket_recvfrom(sockfd, buffer, (platform_ssize_t)buffer_size, 0, server_info, size_of_server_info);
+    if(n<0){
+        platform_print("client - Receive function error, exit code %ld\n", n);
+        platform_panic(-1);
+    }else{
+        if (n > 0 && n < buffer_size) {
+            buffer[n] = '\0';
+        }
+        platform_print("client - Received %ld bytes\n",n);
+    }
+    return n;
+}
 
-}MessageType_t;
-typedef enum
-{
-    CommandType_GET_PROPERTY = 0,
-    CommandType_SET_PROPERTY = 1,
-    CommandType_MOTOR_CONTROL = 2,                                  // used to manually drive the car
-    CommandType_MOVE = 3,                                           // for autonomous movements with POIs
-    CommandType_EMERGENCY_STOP = 4,
-    CommandType_RESET = 5
-}CommandType_t;
-typedef enum ActionResult{
-    ActionResult_SUCCESS = 0,
-    ActionResult_FAILURE = 1,
-    ActionResult_PENDING = 2
-}ActionResult_t;
-typedef enum
-{
-    DestinationCheckpoint_HOME = 0, // starting point
-    DestinationCheckpoint_LOAD = 1, // position of the load to collect
-    DestinationCheckpoint_BASE = 2  // load destination
-} DestinationCheckpoint_t;
-typedef enum
-{
-    NavigationType_MANUAL = 0,
-    NavigationType_CHECKPOINT = 1,
-    NavigationType_GRID = 2,
-    NavigationType_FREE_MOVE = 3
-} NavigationType_t;
-typedef enum
-{
-    RoutePolicy_SHORTEST = 0,
-    RoutePolicy_SAFEST = 1,
-    RoutePolicy_FAST = 2
-} RoutePolicy_t;
-typedef enum
-{
-    Direction_FORWARD = 0,
-    Direction_BACKWARD = 1,
-    Direction_LEFT = 2,
-    Direction_RIGHT = 3,
-    Direction_STOP = 4
-} Direction_t;
-typedef enum
-{
-    SpeedLevel_SLOW = 0,   // reduced speed of all functionalities with possible forced idle cycles (mainly for debug)
-    SpeedLevel_NORMAL = 1,  // normal flow
-    SpeedLevel_FAST = 2    // faster decisions and functionalities (for future extensions)
-} SpeedLevel_t;
-typedef enum
-{
-    DebugLevel_OFF = 0,    // don't
-    DebugLevel_BASIC = 1,  // warning messages only
-    DebugLevel_FULL = 2    // debug all possible messages and events
-} DebugLevel_t;
-typedef enum
-{
-    FeedbackLevel_SILENT = 0, // basic feedback needed for server
-    FeedbackLevel_MINIMAL = 1, // feedback messages with more details/info
-    FeedbackLevel_DEBUG = 2   // send back to server a debug-level feedback
-} FeedbackLevel_t;
-typedef enum{
-    ErrorSeverity_t_LOW = 0,
-    ErrorSeverity_t_MID = 1,
-    ErrorSeverity_t_HIGH = 2
-} ErrorSeverity_t;
-typedef enum
-{
-    Motors_END_MOT = -1, // end of motor list
-    Motors_RES = 0,      // reserved for now
-    Motors_MOT1 = 1,     // left car movement motor
-    Motors_MOT2 = 2,     // right car movement motor
-    Motors_MOT3 = 3,     // additional motors
-    Motors_MOT4 = 4,     // additional motors
-    Motors_MOT5 = 5,     // ...
-    Motors_MOT6 = 6      // ...
-} Motors_t;
-typedef enum
-{
-    ConfigFields_SPEED = 0,
-    ConfigFields_FEEDBACK = 1,
-    ConfigFields_DEBUG = 2,
-    ConfigFields_NAVIGATION_TYPE = 3,
-    ConfigFields_ROUTE_POLICY = 4,
-    ConfigFields_RADAR = 5,
-    ConfigFields_SCREEN = 6,
-    ConfigFields_OBSTACLE_CLEANER = 10, // range gap for future updates
-    ConfigFields_OBJECT_LOADER = 11,
-    ConfigFields_OBJECT_UNLOADER = 12,
-    ConfigFields_OBJECT_COMPACTER = 13
-} ConfigFields_t;
-// endof Server-Common Structures
+void client_socket_set_server_info(platform_sockaddr_in_t* server_info, const int server_port, const char* server_address){
+    server_info->sin_family = AF_INET;
+    server_info->sin_port = htons(server_port);
+    server_info->sin_addr.s_addr = inet_addr(server_address);       // provided by lwIP API too
+}
 
-typedef struct MovePayload
-{
-    int destination_x;
-    int destination_y;
-    DestinationCheckpoint_t destination_checkpoint;
-    NavigationType_t navigation_type;
-    RoutePolicy_t route_policy;
-} MovePayload_t;
-typedef struct MotorControlPayload
-{
-    Motors_t motor_ids[MAX_MOTORS_COUNT];   // can activate multiple motors at once, if the vector is empty the intended action is to drive it as a car
-    Direction_t direction; // Direction_FORWARD or Direction_BACKWARD for direct motor control. Can be Direction_LEFT or Direction_RIGHT only if motor_ids is empty
-    uint8_t speed;       // 0-100, basically the direct pwm ratio
-    int angle;           // from -360 to +360, on spot rotation angle
-    uint32_t duration;   // can be 0 or greater (0 -> keep running, otherwise set a timeout)
-} MotorControlPayload_t;
-typedef struct SetConfigPayload
-{
-    ConfigFields_t prop; // single prop from ConfigFields_t list
-    int new_value;   // new value type depends on what's the property but transmitted as integer
-} SetConfigPayload_t;
-typedef struct GetConfigPayload
-{
-    ConfigFields_t prop; // expected one of the ConfigFields_t to return its value
-} GetConfigPayload_t;
-typedef struct EmergencyStopPayload
-{
-    char stop[MAX_CHAR_MSG]; // gotta simply match the "stop" keyword to stop the tasks currently running
-} EmergencyStopPayload_t;
-typedef struct ResetPayload
-{
-    char reset[MAX_CHAR_MSG]; // gotta simply match the "reset" keyword to reset the board (idle/busy) or clear the error state (or clear the active emergency stop state)
-} ResetPayload_t;
+// mainly function used from other files.
+// initialize the socket and send a string message
+// return -1 if the send failed
+// Note: use function serializeJson(json_doc, char_msg) to pass the string message
+int client_send_packet(char* msg, platform_ssize_t msg_size){
+    platform_sockaddr_in_t server_info;
+    platform_socket_fd_t sockfd = platform_socket_create_udp();
+    client_socket_set_server_info(&server_info, SERVER_PORT, SERVER_ADDRESS);  
+    platform_socklen_t size_of_server_info = (platform_socklen_t)sizeof(server_info);
+    int send_result = socket_send_message(sockfd, msg, msg_size, (platform_sockaddr_t *)&server_info, &size_of_server_info);
+    if((RETRY_SEND_MESSAGE) && (send_result < 0)){
+        int attempt_counter = 0;
+        do{
+            send_result = socket_send_message(sockfd, msg, msg_size, (platform_sockaddr_t *)&server_info, &size_of_server_info);
+            attempt_counter++;
+        }while(send_result < 0 && (attempt_counter < RETRY_SEND_MESSAGE_MAX_ATTEMPTS));
+    }
+    return send_result;
+}
 
+int client_main_test() {
+    // send an UDP message to the server
+    const char *msg = "Hello from client";
+    platform_sockaddr_in_t server_info;
+    
+    platform_socket_fd_t sockfd = socket_init();
+    client_socket_set_server_info(&server_info, SERVER_PORT, SERVER_ADDRESS);
+    
+    platform_socklen_t size_of_server_info = (platform_socklen_t)sizeof(server_info);
+    socket_send_message(sockfd, msg, (platform_ssize_t)strlen(msg), (platform_sockaddr_t *)&server_info, &size_of_server_info);
 
-typedef struct PropertyMsg_t{
-    ConfigFields_t prop;
-    int value;
-} PropertyMsg_t;
-
-typedef struct FeedbackMsg_t{
-    ActionResult status;
-    ErrorCode_t error_code;
-    char error_message[MAX_CHAR_MSG];
-}FeedbackMsg_t;
-
-// Check packet integrity (structured as protocol)
-// and packet meaning -> decide which callback to use
-int PacketHandler(char* packet, ssize_t packet_size);
-
-// Decide which action to perform according to the current state and the received Move command
-int MoveHandler(MovePayload_t data);
-
-// Decide which action to perform according to the current state and the received Motor Control commandb
-int MotorControlHandler(MotorControlPayload_t data);
-
-// Decide which action to perform according to the current state and the received Set Config command
-int SetConfigHandler(SetConfigPayload_t data);
-
-// Decide which action to perform according to the current state and the received Get Config command
-int GetConfigHandler(GetConfigPayload_t data);
-
-// Decide which action to perform according to the current state and the received Emergency Stop command
-int EmergencyStopHandler(EmergencyStopPayload_t data);
-
-// Decide which action to perform according to the current state and the received Reset command
-int ResetHandler(ResetPayload_t data);
-
-// Start this server to listen for packets and managing commands
-int RobotStartServer();
-
-#endif
+    // Receive a message from the same server
+    char buffer[BUFFER_SIZE];
+    platform_ssize_t recv_bytes = 0;
+    recv_bytes = socket_get_message(sockfd, buffer, BUFFER_SIZE, (platform_sockaddr_t *)&server_info, &size_of_server_info);
+    platform_print("client - Received message(%ld): '%s' from server\n", recv_bytes, buffer);
+    platform_socket_close(sockfd);
+    return 0;
+}

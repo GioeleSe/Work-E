@@ -50,7 +50,7 @@ static void platform_sem_destroy(platform_sem_t *sem)
 #endif
 }
 
-static platform_socket_fd_t platform_socket_create_udp()            // no real implementation distinction but more coherent interface
+static platform_socket_fd_t platform_socket_create_udp()            // no real implementation distinction but more coherent interface  
 {
     return socket(AF_INET, SOCK_DGRAM, 0);
 }
@@ -87,9 +87,9 @@ static void platform_thread_create(platform_thread_t *thread, void *(*func)(void
     ctx->func = func;
     ctx->arg  = arg;
     BaseType_t rc = xTaskCreate(_platform_task_wrapper, name ? name : "task", PLATFORM_THREAD_STACK_SIZE / sizeof(StackType_t), ctx, PLATFORM_THREAD_PRIORITY, thread);
-    if (rc != pdPASS) {
-        free(ctx);
-        return -1;
+    if (rc != pdPASS) { 
+        free(ctx); 
+        return -1; 
     }
     return 0;
 #endif

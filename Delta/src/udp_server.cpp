@@ -17,13 +17,13 @@ platform_socket_fd_t server_socket_init(){
 
 void server_socket_set_server_info(platform_sockaddr_in_t* server_info, const int server_port){
     server_info->sin_family = AF_INET;                              // available in lwIP as well
-    server_info->sin_port = htons(server_port);                     // valid function in both platforms
+    server_info->sin_port = htons(server_port);                     // valid function in both platforms 
     server_info->sin_addr.s_addr = INADDR_ANY;                      // available in lwIP as well (value 0x00000000)
 }
 
 void server_socket_bind(const platform_socket_fd_t sockfd, platform_sockaddr_in_t* server_info, platform_socklen_t* size_of_server_info){
-
-    platform_print("binding on port %d, fd %d, size %d\n",
+    
+    platform_print("binding on port %d, fd %d, size %d\n", 
     ntohs(server_info->sin_port), sockfd, *size_of_server_info);    // valid function in both platforms
 
     if (platform_socket_bind(sockfd, (platform_sockaddr_t *)server_info, *size_of_server_info) < 0)
@@ -59,18 +59,18 @@ void server_socket_send_message(const platform_socket_fd_t sockfd, const char* m
 int server_udp_channel_test()
 {
     platform_sockaddr_in_t server_info, client_info;
-
+    
     int sockfd = server_socket_init();
     server_socket_set_server_info(&server_info, SERVER_PORT);
 
     platform_socklen_t size_of_server_info = (platform_socklen_t)sizeof(server_info);
     server_socket_bind(sockfd, &server_info, &size_of_server_info);
-
+    
     char buffer[BUFFER_SIZE];
     platform_socklen_t size_of_client_info = (platform_socklen_t)sizeof(client_info);
     platform_ssize_t recv_bytes = server_socket_wait_packets(sockfd, buffer, BUFFER_SIZE, (platform_sockaddr_t *)&client_info, &size_of_client_info);
     platform_print("server - Received message(%ld): '%s' from client\n", recv_bytes, buffer);
-
+    
     const char *msg = "Hello from server";
     server_socket_send_message(sockfd, msg,  (size_t)strlen(msg), (const platform_sockaddr_t *)&client_info, &size_of_client_info);
     platform_print("server - replied to client correctly\n");
@@ -107,12 +107,12 @@ int server_buffer_push(char* data,  int size_of_data){
     int max_size = buffer_data->buffer_max_size;
     int max_line_size = buffer_data->buffer_max_line_size;
     int next = (head + 1 == max_size) ? 0 : head + 1;
-
+    
     if(buffer_data->buffer_is_full){
         platform_sem_post(&buffer_data->buffer_messages_mutex);
         return -1; // drop the message, buffer full
-    }
-
+    } 
+    
     int saturation_size_of_data = (size_of_data > max_line_size)? max_line_size:size_of_data;
     // platform_print("push: data='%s' size=%d max_line=%d saturated=%d\n", data, size_of_data, max_line_size, saturation_size_of_data);
     memset(buffer_data->buffer_messages[head], 0, max_line_size);
@@ -133,7 +133,7 @@ int server_buffer_pop(char* dest_data){
     udp_server_buffer_t* buffer_data = &udp_server_data.udp_server_buffer;
     platform_sem_wait(&buffer_data->buffer_messages_counting_sem);
     platform_sem_wait(&buffer_data->buffer_messages_mutex);
-
+    
     int head = buffer_data->buffer_messages_head;
     int tail = buffer_data->buffer_messages_tail;
     int max_size = buffer_data->buffer_max_size;
@@ -144,7 +144,7 @@ int server_buffer_pop(char* dest_data){
     int size_of_src_data = strlen(src_data);
     memcpy(dest_data, src_data, size_of_src_data);
     dest_data[size_of_src_data] = '\0';
-
+    
     buffer_data->buffer_messages_tail = next;
     buffer_data->buffer_is_full = 0;
 
@@ -175,12 +175,12 @@ void server_listen_port(){
                 continue;
             }
         }
-        if(udp_server_data.stop_server){                            // destroy the semaphore and the socket
+        if(udp_server_data.stop_server){                            // destroy the semaphore and the socket 
             platform_sem_destroy(&udp_server_data.udp_server_buffer.buffer_messages_mutex);
             platform_sem_destroy(&udp_server_data.udp_server_buffer.buffer_messages_counting_sem);
             platform_socket_close(udp_server_data.socket_fd);
             should_exit = 1;
         }
-        platform_sleep_ms(3000);                                    // wait to avoid keeping busy the semaphore
+        platform_sleep_ms(3000);                                    // wait to avoid keeping busy the semaphore 
     }while(!should_exit);
 }

@@ -1,6 +1,6 @@
 #ifndef MAIN_ROBOT_H
 #define MAIN_ROBOT_H
-#include "robot_server.h"
+#include "robot_types.h"
 
 // communication baud for serial speed matching
 #define SERIAL_BAUD 115200
@@ -9,7 +9,8 @@
 
 // Hardware pin assignments
 #define PIN_BUZZER              4
-#define PIN_RADAR_SERVO         13
+#define PIN_CLAW_SERVO         13
+#define PIN_LEVER_SERVO        18
 #define PIN_RADAR_SENSOR_SDA    26
 #define PIN_RADAR_SENSOR_SCL    27
 #define PIN_LED_GREEN           14
@@ -21,10 +22,16 @@
 #define PIN_WHEELS_DRIVER_IN2   23
 #define PIN_WHEELS_DRIVER_IN3   22
 #define PIN_WHEELS_DRIVER_IN4   21
-#define PIN_TRUNK_DRIVER_SLEEP  17
-#define PIN_TRUNK_DRIVER_IN1    19
-#define PIN_TRUNK_DRIVER_IN2    18
-#define PIN_TRUNK_SWITCH        34
+
+// LEDC channel assignments (ESP32 has 16 channels, 0-15)
+#define CH_RADAR_SERVO   0
+#define CH_CLAW_SERVO    1
+#define CH_LEVER_SERVO   2
+#define CH_WHEEL_R_IN1   3
+#define CH_WHEEL_R_IN2   4
+#define CH_WHEEL_L_IN3   5
+#define CH_WHEEL_L_IN4   6
+
 
 
 
@@ -116,6 +123,9 @@ int self_motion_stop_motor(Motors_t motor_id);
 // It should be easly mapped to the Servo library function servo.write(angle)
 // (speed is ignored, just turn it as you want)
 int self_motion_steer_servo(Motors_t motor_id, int angle);
+// robot Delta specific functions to control claw and lever
+int self_motion_open_claw(int angle);
+int self_motion_move_lever(int angle);
 
 // Turn the robot to the specified direction value.
 // No timing, no motor ids, just turn it as you want.
@@ -131,5 +141,13 @@ int self_motion_car_proceed(Direction_t direction);
 // Simply stop the wheel motors
 // Note: in the body of this the function self_motion_stop_motor should be reused.
 int self_motion_car_stop();
+
+#define CLAW_ANGLE_MIN   10
+#define CLAW_ANGLE_MAX   30
+#define LEVER_ANGLE_MIN  20
+#define LEVER_ANGLE_MAX  40
+
+int self_motion_open_claw(int angle);
+int self_motion_move_lever(int angle);
 
 #endif

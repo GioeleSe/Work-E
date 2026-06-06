@@ -1,4 +1,4 @@
-// On-device motor test — calls main_robot motion functions directly, no UDP stack needed.
+// On-device servo test — calls main_robot motion functions directly, no UDP stack needed.
 // Build and upload: pio run -e motor_test -t upload
 // Open Serial at 115200 to observe steps.
 
@@ -13,32 +13,26 @@ void setup() {
 
     self_robot_state_sem = xSemaphoreCreateMutex();
 
-    // Wake the wheel motor driver and attach PWM channels
-    pinMode(PIN_WHEELS_DRIVER_SLEEP, OUTPUT);
-    digitalWrite(PIN_WHEELS_DRIVER_SLEEP, HIGH);
-    ledcAttach(PIN_WHEELS_DRIVER_IN1, 1000, 8);
-    ledcAttach(PIN_WHEELS_DRIVER_IN2, 1000, 8);
-    ledcAttach(PIN_WHEELS_DRIVER_IN3, 1000, 8);
-    ledcAttach(PIN_WHEELS_DRIVER_IN4, 1000, 8);
+    ledcSetup(CH_CLAW_SERVO,  50, 16); ledcAttachPin(PIN_CLAW_SERVO,  CH_CLAW_SERVO);
+    ledcSetup(CH_LEVER_SERVO, 50, 16); ledcAttachPin(PIN_LEVER_SERVO, CH_LEVER_SERVO);
 
-    self_motion_car_stop();
-    Serial.println("Motor test ready — forward/stop/backward loop");
+    Serial.println("Servo test ready — claw and lever sweep");
 }
 
 void loop() {
-    Serial.println("Forward 1s");
-    self_motion_car_proceed(Direction_FORWARD);
+    Serial.println("Claw -> MIN");
+    self_motion_open_claw(CLAW_ANGLE_MIN);
     delay(1000);
 
-    Serial.println("Stop 500ms");
-    self_motion_car_stop();
-    delay(500);
-
-    Serial.println("Backward 1s");
-    self_motion_car_proceed(Direction_BACKWARD);
+    Serial.println("Claw -> MAX");
+    self_motion_open_claw(CLAW_ANGLE_MAX);
     delay(1000);
 
-    Serial.println("Stop 500ms");
-    self_motion_car_stop();
-    delay(500);
+    Serial.println("Lever -> MIN");
+    self_motion_move_lever(LEVER_ANGLE_MIN);
+    delay(1000);
+
+    Serial.println("Lever -> MAX");
+    self_motion_move_lever(LEVER_ANGLE_MAX);
+    delay(1000);
 }

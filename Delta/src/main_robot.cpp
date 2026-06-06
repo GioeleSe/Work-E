@@ -1,9 +1,8 @@
+#include <Arduino.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/timers.h"
-#include "driver/ledc.h"
 #include "esp_system.h"
-#include "robot_server.h"
 #include "main_robot.h"
 
 #define MAIN_FSM_SETUP       10
@@ -12,8 +11,16 @@
 #define MAIN_FSM_ERROR       1000
 #define MAIN_FSM_FATAL_ERROR 1010
 
-#define TRUNK_OPEN_TIME (2000 * 100)
-#define TRUNK_IS_OPEN() (digitalRead(PIN_TRUNK_SWITCH) == LOW)
+#define SERVO_MIN_US  500   // pulse width in microseconds at 0°
+#define SERVO_MAX_US 2500   // pulse width in microseconds at 180°
+#define PROP_SET(VAR, TYPE, VAL) \
+    if (xSemaphoreTake(self_robot_prop_setter, pdMS_TO_TICKS(40)) == pdTRUE) { \
+        VAR = (TYPE)VAL; \
+        xSemaphoreGive(self_robot_prop_setter); \
+        return 0; \
+    } else { \
+        return -1; \
+    }
 
 typedef enum {
     MOTORID_ERR         = -1,
@@ -21,7 +28,8 @@ typedef enum {
     MOTORID_WHEEL_RIGHT = 1,
     MOTORID_WHEEL_LEFT  = 2,
     MOTORID_RADAR_SERVO = 3,
-    MOTORID_TRUNK       = 4
+    MOTORID_CLAW       = 4,
+    MOTORID_LEVER      = 5,
 } LocalMotors_t;
 
 static TimerHandle_t motorStopTimer = NULL;
@@ -29,6 +37,7 @@ static TaskHandle_t  udp_server_task_handle = NULL;
 
 RobotState_t      self_robot_state;
 SemaphoreHandle_t self_robot_state_sem;
+SemaphoreHandle_t self_robot_prop_setter;
 
 static SpeedLevel_t     prop_speed           = SpeedLevel_NORMAL;
 static DebugLevel_t     prop_debug           = DebugLevel_BASIC;
@@ -74,24 +83,45 @@ int self_prop_get_object_unloader()  { return prop_object_unloader; }
 int self_prop_get_object_compacter() { return prop_object_compacter; }
 
 // ---- property setters (to be implemented) ----
+int self_prop_set_robot_state(int new_value) {
+    if (xSemaphoreTake(self_robot_state_sem, pdMS_TO_TICKS(20)) == pdTRUE) {
+        self_robot_state = (RobotState_t)new_value;
+        xSemaphoreGive(self_robot_state_sem);
+        return 0;
+    } else {
+        return -1; /* failed to acquire state semaphore */
+    }
+}
+int self_prop_set_speed(int new_value)             { PROP_SET(prop_speed, SpeedLevel_t, new_value); }
+int self_prop_set_feedback(int new_value)          { PROP_SET(prop_feedback, FeedbackLevel_t, new_value); }
+int self_prop_set_debug(int new_value)             { PROP_SET(prop_debug, DebugLevel_t, new_value); }
+int self_prop_set_navigation_type(int new_value)   { PROP_SET(prop_navigation_type, NavigationType_t, new_value); }
+int self_prop_set_route_policy(int new_value)      { PROP_SET(prop_route_policy, RoutePolicy_t, new_value); }
+int self_prop_set_radar(int new_value)             { PROP_SET(prop_radar, int, new_value); }
+int self_prop_set_screen(int new_value)            { PROP_SET(prop_screen, int, new_value); }
+int self_prop_set_obstacle_cleaner(int new_value)  { PROP_SET(prop_obstacle_cleaner, int, new_value); }
+int self_prop_set_object_loader(int new_value)     { PROP_SET(prop_object_loader, int, new_value); }
+int self_prop_set_object_unloader(int new_value)   { PROP_SET(prop_object_unloader, int, new_value); }
+int self_prop_set_object_compacter(int new_value)  { PROP_SET(prop_object_compacter, int, new_value); }
 
-int self_prop_set_speed(int new_value)             { return 0; }
-int self_prop_set_feedback(int new_value)          { return 0; }
-int self_prop_set_debug(int new_value)             { return 0; }
-int self_prop_set_navigation_type(int new_value)   { return 0; }
-int self_prop_set_route_policy(int new_value)      { return 0; }
-int self_prop_set_radar(int new_value)             { return 0; }
-int self_prop_set_screen(int new_value)            { return 0; }
-int self_prop_set_obstacle_cleaner(int new_value)  { return 0; }
-int self_prop_set_object_loader(int new_value)     { return 0; }
-int self_prop_set_object_unloader(int new_value)   { return 0; }
-int self_prop_set_object_compacter(int new_value)  { return 0; }
+static void dc_motor_stop(uint8_t in1, uint8_t in2);
 
 // ---- state commands (to be implemented) ----
 
-int self_hard_reset()     { return 0; }
-int self_soft_reset()     { return 0; }
-int self_emergency_stop() { return 0; }
+int self_hard_reset()     { 
+    esp_restart();
+    return 0; 
+}
+int self_soft_reset()     {
+    self_prop_set_robot_state(RobotState_IDLE);
+    return 0;
+ }
+int self_emergency_stop() {
+    dc_motor_stop(CH_WHEEL_R_IN1, CH_WHEEL_R_IN2);
+    dc_motor_stop(CH_WHEEL_L_IN3, CH_WHEEL_L_IN4);
+    self_prop_set_robot_state(RobotState_ERR);
+    return 0;
+ }
 
 // ---- low-level motor helpers ----
 
@@ -101,50 +131,41 @@ static LocalMotors_t motorIdToEnum(Motors_t motorId) {
         case Motors_MOT1:    return MOTORID_WHEEL_RIGHT;
         case Motors_MOT2:    return MOTORID_WHEEL_LEFT;
         case Motors_MOT3:    return MOTORID_RADAR_SERVO;
-        case Motors_MOT4:    return MOTORID_TRUNK;
+        case Motors_MOT4:    return MOTORID_CLAW;
+        case Motors_MOT5:    return MOTORID_LEVER;
         case Motors_END_MOT:
         default:             return MOTORID_ERR;
     }
 }
 
-static void dc_motor_stop(uint8_t in1, uint8_t in2) {
-    ledcWrite(in1, 0);
-    ledcWrite(in2, 0);
+static void dc_motor_stop(uint8_t ch1, uint8_t ch2) {
+    ledcWrite(ch1, 0);
+    ledcWrite(ch2, 0);
 }
 
 static void motorStopCallback(TimerHandle_t xTimer) {
-    uint32_t pins = (uint32_t)pvTimerGetTimerID(xTimer);
-    dc_motor_stop((pins >> 8) & 0xFF, pins & 0xFF);
+    uint32_t chs = (uint32_t)pvTimerGetTimerID(xTimer);
+    dc_motor_stop((chs >> 8) & 0xFF, chs & 0xFF);
 }
 
-static void dc_motor_start(uint8_t in1, uint8_t in2, int dir, uint8_t duty_pct, int duration_ms) {
+static void dc_motor_start(uint8_t ch1, uint8_t ch2, int dir, uint8_t duty_pct, int duration_ms) {
     uint32_t duty = (uint32_t)((duty_pct * 255) / 100);
     if (dir > 0) {
-        ledcWrite(in1, duty);
-        ledcWrite(in2, 0);
+        ledcWrite(ch1, duty);
+        ledcWrite(ch2, 0);
     } else {
-        ledcWrite(in1, 0);
-        ledcWrite(in2, duty);
+        ledcWrite(ch1, 0);
+        ledcWrite(ch2, duty);
     }
     if (duration_ms > 0) {
-        uint32_t pins = ((uint32_t)in1 << 8) | in2;
+        uint32_t chs = ((uint32_t)ch1 << 8) | ch2;
         if (motorStopTimer != NULL) {
             xTimerStop(motorStopTimer, 0);
             xTimerDelete(motorStopTimer, 0);
         }
-        motorStopTimer = xTimerCreate("mStop", pdMS_TO_TICKS(duration_ms), pdFALSE, (void*)pins, motorStopCallback);
+        motorStopTimer = xTimerCreate("mStop", pdMS_TO_TICKS(duration_ms), pdFALSE, (void*)chs, motorStopCallback);
         if (motorStopTimer != NULL) xTimerStart(motorStopTimer, 0);
     }
-}
-
-static void dc_motor_wake(uint8_t sleep_pin) {
-    digitalWrite(sleep_pin, HIGH);
-    vTaskDelay(pdMS_TO_TICKS(1));
-}
-
-static void dc_motor_sleep(uint8_t sleep_pin, uint8_t in1, uint8_t in2) {
-    dc_motor_stop(in1, in2);
-    digitalWrite(sleep_pin, LOW);
 }
 
 // ---- motion API ----
@@ -152,42 +173,19 @@ static void dc_motor_sleep(uint8_t sleep_pin, uint8_t in1, uint8_t in2) {
 int self_motion_activate_dc_motor(Motors_t motor_id, Direction_t direction, int speed, int duration) {
     LocalMotors_t motor = motorIdToEnum(motor_id);
     switch (motor) {
-        case MOTORID_TRUNK:
-            dc_motor_wake(PIN_TRUNK_DRIVER_SLEEP);
-            switch (direction) {
-                case Direction_FORWARD:
-                    if (!TRUNK_IS_OPEN()) {
-                        int capped = ((duration * speed) < TRUNK_OPEN_TIME) ? duration : (TRUNK_OPEN_TIME / speed);
-                        dc_motor_start(PIN_TRUNK_DRIVER_IN1, PIN_TRUNK_DRIVER_IN2, 1, speed, capped);
-                    } else {
-                        dc_motor_stop(PIN_TRUNK_DRIVER_IN1, PIN_TRUNK_DRIVER_IN2);
-                    }
-                    break;
-                case Direction_BACKWARD:
-                    if (TRUNK_IS_OPEN()) {
-                        dc_motor_start(PIN_TRUNK_DRIVER_IN1, PIN_TRUNK_DRIVER_IN2, -1, speed, duration);
-                        do { vTaskDelay(pdMS_TO_TICKS(1)); } while (TRUNK_IS_OPEN());
-                        dc_motor_stop(PIN_TRUNK_DRIVER_IN1, PIN_TRUNK_DRIVER_IN2);
-                    }
-                    break;
-                default:
-                    break;
-            }
-            dc_motor_sleep(PIN_TRUNK_DRIVER_SLEEP, PIN_TRUNK_DRIVER_IN1, PIN_TRUNK_DRIVER_IN2);
-            break;
         case MOTORID_WHEEL_RIGHT:
             switch (direction) {
-                case Direction_FORWARD:  dc_motor_start(PIN_WHEELS_DRIVER_IN1, PIN_WHEELS_DRIVER_IN2,  1, speed, duration); break;
-                case Direction_BACKWARD: dc_motor_start(PIN_WHEELS_DRIVER_IN1, PIN_WHEELS_DRIVER_IN2, -1, speed, duration); break;
-                case Direction_STOP:     dc_motor_stop(PIN_WHEELS_DRIVER_IN1, PIN_WHEELS_DRIVER_IN2);  break;
+                case Direction_FORWARD:  dc_motor_start(CH_WHEEL_R_IN1, CH_WHEEL_R_IN2,  1, speed, duration); break;
+                case Direction_BACKWARD: dc_motor_start(CH_WHEEL_R_IN1, CH_WHEEL_R_IN2, -1, speed, duration); break;
+                case Direction_STOP:     dc_motor_stop(CH_WHEEL_R_IN1, CH_WHEEL_R_IN2);  break;
                 default: break;
             }
             break;
         case MOTORID_WHEEL_LEFT:
             switch (direction) {
-                case Direction_FORWARD:  dc_motor_start(PIN_WHEELS_DRIVER_IN3, PIN_WHEELS_DRIVER_IN4,  1, speed, duration); break;
-                case Direction_BACKWARD: dc_motor_start(PIN_WHEELS_DRIVER_IN3, PIN_WHEELS_DRIVER_IN4, -1, speed, duration); break;
-                case Direction_STOP:     dc_motor_stop(PIN_WHEELS_DRIVER_IN3, PIN_WHEELS_DRIVER_IN4);  break;
+                case Direction_FORWARD:  dc_motor_start(CH_WHEEL_L_IN3, CH_WHEEL_L_IN4,  1, speed, duration); break;
+                case Direction_BACKWARD: dc_motor_start(CH_WHEEL_L_IN3, CH_WHEEL_L_IN4, -1, speed, duration); break;
+                case Direction_STOP:     dc_motor_stop(CH_WHEEL_L_IN3, CH_WHEEL_L_IN4);  break;
                 default: break;
             }
             break;
@@ -197,6 +195,21 @@ int self_motion_activate_dc_motor(Motors_t motor_id, Direction_t direction, int 
     return 0;
 }
 
+// ---- servo API ----
+uint32_t angle_to_duty(int angle) {
+    uint32_t us = SERVO_MIN_US + ((uint32_t)angle * (SERVO_MAX_US - SERVO_MIN_US)) / 180;
+    return (us * 65536) / 20000;
+}
+int self_motion_open_claw(int angle) {
+    if (angle < CLAW_ANGLE_MIN || angle > CLAW_ANGLE_MAX) return -1;
+    ledcWrite(CH_CLAW_SERVO, angle_to_duty(angle));
+    return 0;
+}
+int self_motion_move_lever(int angle) {
+    if (angle < LEVER_ANGLE_MIN || angle > LEVER_ANGLE_MAX) return -1;
+    ledcWrite(CH_LEVER_SERVO, angle_to_duty(angle));
+    return 0;
+}
 // ---- motion stubs (to be implemented) ----
 
 int self_motion_stop_motor(Motors_t motor_id)                               { return 0; }
@@ -216,21 +229,20 @@ static void robot_server_task(void *arg) {
 }
 
 void setup() {
-    self_robot_state_sem = xSemaphoreCreateMutex();
+    self_robot_state_sem  = xSemaphoreCreateMutex();
+    self_robot_prop_setter = xSemaphoreCreateMutex();
     Serial.begin(SERIAL_BAUD);
 
-    ledcAttach(PIN_RADAR_SERVO,       5000, 8);
-    ledcAttach(PIN_TRUNK_DRIVER_IN1,  1000, 8);
-    ledcAttach(PIN_TRUNK_DRIVER_IN2,  1000, 8);
-    ledcAttach(PIN_WHEELS_DRIVER_IN1, 1000, 8);
-    ledcAttach(PIN_WHEELS_DRIVER_IN2, 1000, 8);
-    ledcAttach(PIN_WHEELS_DRIVER_IN3, 1000, 8);
-    ledcAttach(PIN_WHEELS_DRIVER_IN4, 1000, 8);
+    ledcSetup(CH_RADAR_SERVO, 50,   16); ledcAttachPin(PIN_RADAR_SERVO,       CH_RADAR_SERVO);
+    ledcSetup(CH_CLAW_SERVO,  50,   16); ledcAttachPin(PIN_CLAW_SERVO,         CH_CLAW_SERVO);
+    ledcSetup(CH_LEVER_SERVO, 50,   16); ledcAttachPin(PIN_LEVER_SERVO,        CH_LEVER_SERVO);
+    ledcSetup(CH_WHEEL_R_IN1, 1000,  8); ledcAttachPin(PIN_WHEELS_DRIVER_IN1, CH_WHEEL_R_IN1);
+    ledcSetup(CH_WHEEL_R_IN2, 1000,  8); ledcAttachPin(PIN_WHEELS_DRIVER_IN2, CH_WHEEL_R_IN2);
+    ledcSetup(CH_WHEEL_L_IN3, 1000,  8); ledcAttachPin(PIN_WHEELS_DRIVER_IN3, CH_WHEEL_L_IN3);
+    ledcSetup(CH_WHEEL_L_IN4, 1000,  8); ledcAttachPin(PIN_WHEELS_DRIVER_IN4, CH_WHEEL_L_IN4);
 
     pinMode(PIN_WHEELS_DRIVER_SLEEP, OUTPUT);
     digitalWrite(PIN_WHEELS_DRIVER_SLEEP, HIGH);
-    pinMode(PIN_TRUNK_DRIVER_SLEEP, OUTPUT);
-    pinMode(PIN_TRUNK_SWITCH, INPUT);
 }
 
 void loop() {

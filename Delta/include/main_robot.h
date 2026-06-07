@@ -9,8 +9,9 @@
 
 // Hardware pin assignments
 #define PIN_BUZZER              4
-#define PIN_CLAW_SERVO         13
-#define PIN_LEVER_SERVO        18
+#define PIN_RADAR_SERVO         19
+#define PIN_CLAW_SERVO          13
+#define PIN_LEVER_SERVO         18
 #define PIN_RADAR_SENSOR_SDA    26
 #define PIN_RADAR_SENSOR_SCL    27
 #define PIN_LED_GREEN           14
@@ -22,6 +23,17 @@
 #define PIN_WHEELS_DRIVER_IN2   23
 #define PIN_WHEELS_DRIVER_IN3   22
 #define PIN_WHEELS_DRIVER_IN4   21
+
+// Radar servo sweep limits
+#define RADAR_ANGLE_MIN  30
+#define RADAR_ANGLE_MAX  150
+#define RADAR_SCAN_STEP  5    // degrees between readings
+#define RADAR_MAX_READINGS ((RADAR_ANGLE_MAX - RADAR_ANGLE_MIN) / RADAR_SCAN_STEP + 1)
+
+typedef struct {
+    int     angle;
+    int     distance_mm;
+} RadarReading_t;
 
 // LEDC channel assignments (ESP32 has 16 channels, 0-15)
 #define CH_RADAR_SERVO   0
@@ -126,6 +138,7 @@ int self_motion_steer_servo(Motors_t motor_id, int angle);
 // robot Delta specific functions to control claw and lever
 int self_motion_open_claw(int angle);
 int self_motion_move_lever(int angle);
+uint32_t angle_to_duty(int angle);
 
 // Turn the robot to the specified direction value.
 // No timing, no motor ids, just turn it as you want.
@@ -142,12 +155,26 @@ int self_motion_car_proceed(Direction_t direction);
 // Note: in the body of this the function self_motion_stop_motor should be reused.
 int self_motion_car_stop();
 
-#define CLAW_ANGLE_MIN   10
-#define CLAW_ANGLE_MAX   30
-#define LEVER_ANGLE_MIN  20
-#define LEVER_ANGLE_MAX  40
+#define CLAW_ANGLE_MIN   25   // open position
+#define CLAW_ANGLE_MAX   95   // closed position
+#define LEVER_ANGLE_MIN  10   // raised position
+#define LEVER_ANGLE_MAX  60   // lowered position
 
-int self_motion_open_claw(int angle);
-int self_motion_move_lever(int angle);
+// Initialize the SSD1306 OLED — call once in setup()
+int self_display_init();
+
+// Write two lines of text to the OLED
+void self_display_show(const char* line1, const char* line2);
+
+// Initialize the VL53L0X sensor — call once in setup()
+int self_radar_init();
+
+// Read a single distance measurement in mm. Returns -1 on failure.
+int self_radar_read_distance();
+
+// Sweep the radar servo across RADAR_ANGLE_MIN to RADAR_ANGLE_MAX,
+// taking a reading every RADAR_SCAN_STEP degrees.
+// Fills out_readings[] and returns the number of readings taken, or -1 on error.
+int self_radar_scan(RadarReading_t *out_readings, int max_readings);
 
 #endif

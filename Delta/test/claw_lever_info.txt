@@ -1,0 +1,36 @@
+CLAW
+Opened position corresponds to lower angle, higher angle is closed claw
+- MIN CLAW ANGLE = 35
+- MAX CLAW ANGLE = 95
+LEVER
+Rasied position is lower angle, lowered lever is high angle
+- MIN LEVER ANGLE = 10
+- MAX LEVER ANGLE = 70
+
+Commands:
+  f : forward         b : backward      x : stop wheels
+  q : right forward   a : right backward
+  e : left forward    d : left backward
+  u : claw open       i : claw close
+  n : lever up        m : lever down
+  c : claw sweep      l : lever sweep
+  r : radar scan      p : radar single read
+  j : radar left      k : radar right     o : radar center
+Pinout
+
+13: Radar Servo
+14: Led Green
+15: Led Red
+16: ---
+17: ---
+18: Gripper Servo 1
+19: Gripper Servo 2
+21: Driver 1 IN4
+22: Driver 1 IN3
+23: Driver 1 IN2
+25: Driver 1 IN1
+26: Radar SDA
+27: Radar SCL
+32: OLED SCL
+33: OLED SDA
+34: ---

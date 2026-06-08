@@ -31,7 +31,7 @@ Here are all the required componets for each of the robots:
 
 - 1x ESP32 board
 - 4x DC motors
-- 2x Drivers **(more specifically?)**
+- 2x Drivers DRV8833
 - 1x Servo motor
 - 1x Radar module
 - 1x OLED screen **(size?)**
@@ -48,7 +48,7 @@ Here are all the required componets for each of the robots:
 
 - 1x ESP32 board
 - 2x DC motors
-- 1x Driver **(more specifically?)**
+- 1x Driver DRV8833
 - 3x Servo motors
 - 1x Radar module
 - 1x OLED screen **(size?)**
@@ -65,7 +65,7 @@ Here are all the required componets for each of the robots:
 
 - 1x ESP32 board
 - 3x DC motors
-- 2x Drivers **(more specifically?)**
+- 2x Drivers DRV8833
 - 1x Servo motor
 - 1x Radar module
 - 1x OLED screen **(size?)**

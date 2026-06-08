@@ -3,8 +3,8 @@
 #include "common_platform_abstr.h"
 
 #define SERVER_ADDRESS "127.0.0.1\0"                                // TODO: check laptop address in hostspot interface  
-#define SERVER_PORT 8181
-#define BUFFER_SIZE 1024
+#define SERVER_PORT 8000
+#define BUFFER_SIZE 256
 #define RETRY_SEND_MESSAGE 1                                        // set to 0 to set it to best effort mode (max attempts will be ignored)
 #define RETRY_SEND_MESSAGE_MAX_ATTEMPTS 3
 

@@ -84,16 +84,16 @@ int RobotStartServer(){
 // ------- robot_server packet handlers implementation here -------
 struct FieldDef {                                                   // fields parser structures (runtime type check)
     const char* name;
-    std::function<bool(const JsonVariant&)> check;
+    std::function<bool(JsonVariantConst)> check;
 };
 const FieldDef expected_fields[] = {
-    {"protocol",     [](const JsonVariant& v){ return v.is<const char*>(); }},
-    {"robot_id",     [](const JsonVariant& v){ return v.is<int>(); }},
-    {"message_type", [](const JsonVariant& v){ return v.is<int>(); }},
-    {"request_id",   [](const JsonVariant& v){ return v.is<int>(); }},
-    {"mode",         [](const JsonVariant& v){ return v.is<int>(); }},
-    {"payload",      [](const JsonVariant& v){ return v.is<JsonObject>(); }},
-    {"timestamp",    [](const JsonVariant& v){ return v.is<long>(); }}
+    {"protocol",     [](JsonVariantConst v){ return v.is<const char*>(); }},
+    {"robot_id",     [](JsonVariantConst v){ return v.is<int>(); }},
+    {"message_type", [](JsonVariantConst v){ return v.is<int>(); }},
+    {"request_id",   [](JsonVariantConst v){ return v.is<int>(); }},
+    {"mode",         [](JsonVariantConst v){ return v.is<int>(); }},
+    {"payload",      [](JsonVariantConst v){ return v.is<JsonObjectConst>(); }},
+    {"timestamp",    [](JsonVariantConst v){ return v.is<long>(); }}
 };
 
 // check for common non-null needed (header) fields:
@@ -102,7 +102,7 @@ const FieldDef expected_fields[] = {
 // obv return -1 for errors
 int check_fields(const JsonDocument& json_doc){
     for (auto const& field_data : expected_fields){
-        JsonVariant field_val = json_doc[field_data.name];
+        JsonVariantConst field_val = json_doc[field_data.name];
         if(field_val.isNull()){
             platform_print("missing field %s in json packet\n", field_data.name);
             return -1;
@@ -134,12 +134,12 @@ int check_command(const JsonObject& json_payload){
 //  - message_type is *not* set here 
 //  - the timestamp is set here
 //  - the uuid is random, overwrite it to match the command uuid
-void set_message_common_headers(const JsonObject& reply_doc){
+void set_message_common_headers(JsonObject reply_doc){
     reply_doc["protocol"] = ROBOT_NET_PROTOCOL;
     reply_doc["robot_id"] = self_prop_get_robot_id();
     reply_doc["request_uuid"] = (uint16_t)(rand()%65535);
     reply_doc["mode"] = (int)MessageMode_t::MessageMode_MANUAL;
-    reply_doc["timestamp"] = time(NULL);
+    reply_doc["timestamp"] = platform_get_time();
 }
 
 // parse the payload to the specific get_config expected structure
@@ -207,7 +207,7 @@ int get_emergency_stop_payload(const JsonObject& json_payload, EmergencyStopPayl
     }
     const char* emergency_stop_keyword_str = emergency_stop_keyword.as<const char*>();
     strncpy(emergency_stop_payload->stop, emergency_stop_keyword_str, strlen(emergency_stop_keyword_str));
-    esp->stop[sizeof(esp->stop) - 1] = '\0';
+    emergency_stop_payload->stop[sizeof(emergency_stop_payload->stop) - 1] = '\0';
     return 0;
 }
 
@@ -284,9 +284,9 @@ int get_move_payload(const JsonObject& json_payload, MovePayload_t* move_payload
     }
     move_payload->destination_x = destination_x.as<int>();
     move_payload->destination_y = destination_y.as<int>();
-    move_payload->destination_checkpoint = destination_checkpoint.as<int>();
-    move_payload->navigation_type = navigation_type.as<int>();
-    move_payload->route_policy = route_policy.as<int>();
+    move_payload->destination_checkpoint = (DestinationCheckpoint_t)destination_checkpoint.as<int>();
+    move_payload->navigation_type = (NavigationType_t)navigation_type.as<int>();
+    move_payload->route_policy = (RoutePolicy_t)route_policy.as<int>();
     return 0;
 }
 
@@ -295,7 +295,8 @@ int get_move_payload(const JsonObject& json_payload, MovePayload_t* move_payload
 // send it back as response packet
 // return -1 if the prop is unrecognized
 int get_config_handler(uint16_t command_uuid, GetConfigPayload_t* get_config_payload){
-    JsonObject reply_packet;
+    JsonDocument reply_doc;
+    JsonObject reply_packet = reply_doc.to<JsonObject>();
     set_message_common_headers(reply_packet);
     reply_packet["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
     reply_packet["request_uuid"] = command_uuid;                    // use the same as the command/request so that the server can track the source event for this reply
@@ -324,6 +325,12 @@ int get_config_handler(uint16_t command_uuid, GetConfigPayload_t* get_config_pay
         case ConfigFields_t::ConfigFields_SCREEN:
             get_value = self_prop_get_screen();
         break;
+        case ConfigFields_t::ConfigFields_LIGHTS:
+            get_value = self_prop_get_lights();
+        break;
+        // case ConfigFields_t::ConfigFields_BRUSHES:
+        //     get_value = self_prop_get_brushes();
+        // break;
         case ConfigFields_t::ConfigFields_OBSTACLE_CLEANER:
             get_value = self_prop_get_obstacle_cleaner();
         break;
@@ -353,7 +360,8 @@ int get_config_handler(uint16_t command_uuid, GetConfigPayload_t* get_config_pay
 // call the set function for the correct property to change. The new value is assigned using main_robot functions 
 // (any error is consumed with failure feedback)
 int set_config_handler(uint16_t command_uuid, SetConfigPayload_t* set_config_payload){
-    JsonObject reply_packet;
+    JsonDocument reply_doc;
+    JsonObject reply_packet = reply_doc.to<JsonObject>();
     set_message_common_headers(reply_packet);
     reply_packet["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
     reply_packet["request_uuid"] = command_uuid;                    // use the same as the command/request so that the server can track the source event for this reply
@@ -383,6 +391,12 @@ int set_config_handler(uint16_t command_uuid, SetConfigPayload_t* set_config_pay
         case ConfigFields_t::ConfigFields_SCREEN:
             self_prop_set_screen(int_new_value);
         break;
+        case ConfigFields_t::ConfigFields_LIGHTS:
+            self_prop_set_lights(int_new_value);
+        break;
+        // case ConfigFields_t::ConfigFields_BRUSHES:
+        //     self_prop_set_brushes(int_new_value);
+        // break;
         case ConfigFields_t::ConfigFields_OBSTACLE_CLEANER:
             self_prop_set_obstacle_cleaner(int_new_value);
         break;
@@ -410,7 +424,8 @@ int set_config_handler(uint16_t command_uuid, SetConfigPayload_t* set_config_pay
 // checking the current robot state and calling soft or hard reset function
 // (any error is consumed with failure feedback)
 int reset_handler(uint16_t command_uuid, ResetPayload_t* reset_payload){
-    JsonObject reply_packet;
+    JsonDocument reply_doc;
+    JsonObject reply_packet = reply_doc.to<JsonObject>();
     set_message_common_headers(reply_packet);
     reply_packet["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
     reply_packet["request_uuid"] = command_uuid;
@@ -448,7 +463,8 @@ int reset_handler(uint16_t command_uuid, ResetPayload_t* reset_payload){
 }
 
 int emergency_stop_handler(uint16_t command_uuid, EmergencyStopPayload_t* emergency_stop_payload){
-    JsonObject reply_packet;
+    JsonDocument reply_doc;
+    JsonObject reply_packet = reply_doc.to<JsonObject>();
     set_message_common_headers(reply_packet);
     reply_packet["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
     reply_packet["request_uuid"] = command_uuid;
@@ -467,7 +483,8 @@ int emergency_stop_handler(uint16_t command_uuid, EmergencyStopPayload_t* emerge
 // From this function the robot will send back error, pending or success feedback according to the command shape.
 // Note: for now no check on the actual activation functions is implemented (even if they're defined as int functions)
 int motor_control_handler(uint16_t command_uuid, MotorControlPayload_t* motor_control_payload){
-    JsonObject reply_packet;
+    JsonDocument reply_doc;
+    JsonObject reply_packet = reply_doc.to<JsonObject>();
     set_message_common_headers(reply_packet);
     reply_packet["request_uuid"] = command_uuid;
     reply_packet["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
@@ -598,7 +615,7 @@ int PacketHandler(char* packet, ssize_t packet_size){
         return -1;
     }
     
-    char* protocol = json_doc["protocol"].as<char*>();
+    const char* protocol = json_doc["protocol"].as<const char*>();
     int robot_id = json_doc["robot_id"].as<int>();
     int message_type = json_doc["message_type"].as<int>();
     int request_id = json_doc["request_id"].as<int>();

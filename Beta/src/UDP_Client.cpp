@@ -1,96 +1,85 @@
-#include "UDP_Client.h"
+#include "common_platform_abstr.h"
+#include "udp_client.h"
 
-AsyncUDP clientUDP;
+platform_socket_fd_t socket_init(){
+    platform_socket_fd_t sockfd;
+    sockfd = platform_socket_create_udp();
+    if (sockfd < 0) {
+        platform_print("client - socket creation failed");
+        // exit(EXIT_FAILURE);
+        platform_panic(-1);
+    }else{
+        platform_print("client - socket created\n");
+    }
+    return sockfd;
+}
 
-//?? add a ConnectionStats struct to keep track of relevant information?
-
-void connectToServer()
+int socket_send_message(const platform_socket_fd_t sockfd, const char* msg, const platform_ssize_t msg_size, const platform_sockaddr_t* server_info, platform_socklen_t* size_of_server_info)
 {
-    Serial.print("Connecting to server ");
-    Serial.print(SERVER_IP);
-    Serial.print(":");
-    Serial.println(SERVER_PORT);
+    int send_result = platform_socket_sendto(sockfd, msg, msg_size, server_info, *size_of_server_info);
+    platform_print("client - message sent.\n");
+    return send_result;
+}
 
-    if (clientUDP.connect(SERVER_IP, SERVER_PORT))
+platform_ssize_t socket_get_message(const platform_socket_fd_t sockfd, char* buffer, const int buffer_size, platform_sockaddr_t* server_info, platform_socklen_t* size_of_server_info)
+{
+    platform_ssize_t n = platform_socket_recvfrom(sockfd, buffer, (platform_ssize_t)buffer_size, server_info, size_of_server_info);
+    if (n < 0)
     {
-        Serial.println("UDP connection established successfully!");
+        platform_print("client - Receive function error, exit code %ld\n", n);
+        platform_panic(-1);
     }
     else
     {
-        Serial.println("UDP connection failed :-(");
-        Serial.print("Error code ");
-        Serial.println(clientUDP.lastErr());
-
-        Serial.println("Retrying connection in 2 seconds");
-        delay(2000);
-        connectToServer();
+        if (n > 0 && n < buffer_size)
+            buffer[n] = '\0';
+        platform_print("client - Received %ld bytes\n", n);
     }
+    return n;
 }
 
-/// Serialize and send message to server
-void sendMessage(JsonDocument message)
-{
-    //!! enclose message in envelope structure
-    String jsonString;
-    serializeJson(message, jsonString);
-
-    // Send data to server
-    clientUDP.write((uint8_t *)jsonString.c_str(), jsonString.length());
+void client_socket_set_server_info(platform_sockaddr_in_t* server_info, const int server_port, const char* server_address){
+    server_info->sin_family = AF_INET;
+    server_info->sin_port = htons(server_port);
+    server_info->sin_addr.s_addr = inet_addr(server_address);       // provided by lwIP API too
 }
 
-//?? states and other relevant info will be passed as arguments to these functions
-//?? almost everything here is a placeholder
-JsonDocument heartbeatMessage()
-{
-    JsonDocument doc;
-
-    doc["state"] = "IDLE"; // IDLE | DISCONNECTED | BUSY | ERROR
-    doc["rssi"] = WiFi.RSSI();
-    return doc;
-}
-
-JsonDocument feedbackMessage()
-{
-    JsonDocument doc;
-
-    doc["status"] = "PENDING"; // SUCCESS | FAILURE | PENDING
-    // todo OPTIONAL: error_code, error_message
-
-    return doc;
-}
-
-JsonDocument eventMessage()
-{
-    JsonDocument doc;
-
-    doc["obstacle_detected"] = 0;
-    doc["poi_recahed"] = 0;
-    doc["load_collected"] = 0;
-    doc["load_disposed"] = 0;
-    doc["reroute_required"] = 0;
-
-    return doc;
-}
-
-JsonDocument errorMessage()
-{
-    JsonDocument doc;
-
-    doc["severity"] = "LOW"; // LOW | MID | HIGH
-    // todo OPTIONAL: error_code, error_message
-
-    return doc;
-}
-
-void checkConnection()
-{
-    // Check if connection is still active
-    // Otherwise, try to reconnect
-    if (!clientUDP.connected())
-    {
-        Serial.println("!! Connection lost !!");
-        Serial.println("Attempting to reconnect...");
-        connectToServer();
+// mainly function used from other files.
+// initialize the socket and send a string message
+// return -1 if the send failed
+// Note: use function serializeJson(json_doc, char_msg) to pass the string message
+int client_send_packet(char* msg, platform_ssize_t msg_size){
+    platform_sockaddr_in_t server_info;
+    platform_socket_fd_t sockfd = platform_socket_create_udp();
+    client_socket_set_server_info(&server_info, SERVER_PORT, SERVER_ADDRESS);  
+    platform_socklen_t size_of_server_info = (platform_socklen_t)sizeof(server_info);
+    int send_result = socket_send_message(sockfd, msg, msg_size, (platform_sockaddr_t *)&server_info, &size_of_server_info);
+    if((RETRY_SEND_MESSAGE) && (send_result < 0)){
+        int attempt_counter = 0;
+        do{
+            send_result = socket_send_message(sockfd, msg, msg_size, (platform_sockaddr_t *)&server_info, &size_of_server_info);
+            attempt_counter++;
+        }while(send_result < 0 && (attempt_counter < RETRY_SEND_MESSAGE_MAX_ATTEMPTS));
     }
-    return;
+    return send_result;
+}
+
+int client_main_test() {
+    // send an UDP message to the server
+    const char *msg = "Hello from client";
+    platform_sockaddr_in_t server_info;
+    
+    platform_socket_fd_t sockfd = socket_init();
+    client_socket_set_server_info(&server_info, SERVER_PORT, SERVER_ADDRESS);
+    
+    platform_socklen_t size_of_server_info = (platform_socklen_t)sizeof(server_info);
+    socket_send_message(sockfd, msg, (platform_ssize_t)strlen(msg), (platform_sockaddr_t *)&server_info, &size_of_server_info);
+
+    // Receive a message from the same server
+    char buffer[BUFFER_SIZE];
+    platform_ssize_t recv_bytes = 0;
+    recv_bytes = socket_get_message(sockfd, buffer, BUFFER_SIZE, (platform_sockaddr_t *)&server_info, &size_of_server_info);
+    platform_print("client - Received message(%ld): '%s' from server\n", recv_bytes, buffer);
+    platform_socket_close(sockfd);
+    return 0;
 }

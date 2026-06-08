@@ -3,13 +3,6 @@
 #include "robot_server.h"
 
 
-// communication baud for serial speed matching
-#define SERIAL_BAUD 115200
-// ID assigned in docs, ranging from 1 to 4
-#define SELF_ROBOT_ID 1
-
-
-
 // should be defined as a global constant in the robot main code
 int self_prop_get_robot_id();
 
@@ -40,6 +33,11 @@ int self_prop_get_object_unloader();
 // return integer representation of property object_compacter (actual value, casted bool or enum index)
 int self_prop_get_object_compacter();
 
+int self_prop_get_lights();
+int self_prop_set_lights(int new_value);
+
+// set a new RobotState_t value index as integer
+int self_prop_set_robot_state(int new_value);
 // Set a new value for property speed.
 // The new value is an integer representation (enum index, actual value or, i.e. casted bool to int)
 int self_prop_set_speed(int new_value);

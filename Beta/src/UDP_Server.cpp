@@ -1,148 +1,225 @@
-#include "UDP_Server.h"
+#include <ArduinoJson.h>                                            // direclty installed as local self-contained lib
+#include "udp_server.h"
 
-AsyncUDP serverUDP;
-
-void startUDPServer()
+platform_socket_fd_t server_socket_init()
 {
-    Serial.println("Starting UDP server");
-    Serial.println("Listening on port ");
-    Serial.println(LOCAL_SERVER_PORT);
-    if (serverUDP.listen(LOCAL_SERVER_PORT))
+    platform_socket_fd_t sockfd = platform_socket_create_udp();
+    if (sockfd < 0)
     {
-        serverUDP.onPacket([](AsyncUDPPacket packet)
-                           { handleIncomingPacket(packet); });
+        platform_print("server - socket creation failed");
+        platform_panic(-1);
     }
     else
     {
-        Serial.println("UDP server setup failed :-(");
-        // Serial.print("Error code ");
-        // Serial.println(serverUDP.lastErr());
+        platform_print("server - socket created\n");
+    }
+    return sockfd;
+}
 
-        Serial.println("Retrying in 2 seconds");
-        delay(2000);
-        startUDPServer();
+void server_socket_set_server_info(platform_sockaddr_in_t *server_info, const int server_port)
+{
+    server_info->sin_family      = AF_INET;
+    server_info->sin_port        = htons(server_port);
+    server_info->sin_addr.s_addr = INADDR_ANY;
+}
+
+void server_socket_bind(const platform_socket_fd_t sockfd, platform_sockaddr_in_t *server_info, platform_socklen_t *size_of_server_info)
+{
+    platform_print("binding on port %d, fd %d, size %d\n",
+                   ntohs(server_info->sin_port), sockfd, *size_of_server_info);
+
+    if (platform_socket_bind(sockfd, server_info, *size_of_server_info) < 0)  // fixed: removed cast, signature matches
+    {
+        platform_print("bind failed");
+        platform_panic(-1);
+    }
+    else
+    {
+        platform_print("server - bind successfully\n");
     }
 }
 
-void handleIncomingPacket(AsyncUDPPacket packet)
+platform_ssize_t server_socket_wait_packets(const platform_socket_fd_t sockfd, char *buffer, const int buffer_size, platform_sockaddr_t *client_info, platform_socklen_t *size_of_client_info)
 {
-    uint8_t *packetData = packet.data(); // Get a pointer to the packet's raw data
-    size_t dataLength = packet.length(); // See how many bytes have been received
-
-    string stringData = stringifyData(packetData, dataLength);
-    printDataAsString(packetData, dataLength);
-
-    // Deserialize the received JSON data and store it in a variable
-    JsonDocument doc;
-
-    // Catch any deserialization errors
-    DeserializationError err = deserializeJson(doc, stringData);
-    if (err)
-    {
-        Serial.print(F("deserializeJson() failed: "));
-        Serial.println(err.c_str());
-        return;
-    }
-
-    //?? from here you can reconstruct the message extracting the values directly with doc["payload"]
-    //?? how can I recognize the type of message received?
-
-    // We only need to know the payload, which differs based on the type of message received
-    CommandType incomingCommandType = doc["message_type"];
-
-    //!! the order of statements in a switch case DOES NOT count!
-    //!! you will have to deal with command priorities in a different way... (queue?)
-    // Execute those commands!
-    switch (incomingCommandType)
-    {
-    case CommandType_RESET:
-    {
-        ResetPayload rstPayload;
-
-        rstPayload.reset = doc["payload"]["reset"];
-        //?? if the receiverd string matches the "reset" keyword reset the board!
-        break;
-    }
-    case CommandType_EMERGENCY_STOP:
-    {
-        EmergencyStopPayload stpPayload;
-
-        stpPayload.stop = doc["payload"]["stop"];
-        //?? if the received string matches the "stop" keyword reset the board!
-        break;
-    }
-    case CommandType_MOTOR_CONTROL:
-    {
-        MotorControlPayload ctlPayload;
-
-        //?? motor_id is an array
-        ctlPayload.direction = doc["direction"];
-        ctlPayload.speed = doc["speed"];
-        ctlPayload.angle = doc["angle"];
-        ctlPayload.duration = doc["duration_ms"];
-        //??
-        break;
-    }
-    case CommandType_MOVE:
-    {
-        // womp womp
-        break;
-    }
-    case CommandType_SET_PROPERTY:
-    {
-        //todo
-        break;
-    }
-    case CommandType_GET_PROPERTY:
-    {
-        //todo
-        break;
-    }
-    default:
-    {
-        Serial.println("ERROR: couldn't recognize command");
-        return;
-    }
-    }
+    // fixed: removed extra 0 flags argument — handled inside platform_socket_recvfrom
+    platform_ssize_t n = platform_socket_recvfrom(sockfd, buffer, buffer_size - 1, client_info, size_of_client_info);
+    if (n > 0 && n < buffer_size)
+        buffer[n] = '\0';
+    return n;
 }
 
-string stringifyData(uint8_t *packetData, size_t dataLength)
+void server_socket_send_message(const platform_socket_fd_t sockfd, const char *msg, const size_t msg_size, const platform_sockaddr_t *client_info, platform_socklen_t *size_of_client_info)
 {
-    string stringData = "";
-    for (size_t i = 0; i < dataLength; i++)
+    // fixed: removed extra 0 flags argument — handled inside platform_socket_sendto
+    platform_ssize_t n = platform_socket_sendto(sockfd, msg, msg_size, client_info, *size_of_client_info);
+    if (n < 0)
     {
-        stringData += (char)packetData[i]; //?? I'm not sure this is correct...
+        platform_print("server - sendto function error, exit code %ld\n", n);
+        platform_panic(-1);
     }
-    return stringData;
+    else
+    {
+        platform_print("server - message sent\n");
+    }
+}
+udp_server_data_t* udp_server_data = NULL;
+udp_server_data_t *server_init()
+{
+    udp_server_data = (udp_server_data_t*)malloc(sizeof(udp_server_data_t));
+    if (udp_server_data == NULL) {
+        platform_panic(-1);
+    }
+    memset(udp_server_data, 0, sizeof(udp_server_data_t));    
+
+    // platform_sem_init_mutex(&udp_server_data->udp_server_buffer.buffer_messages_counting_sem,   0, 0);
+    // platform_sem_init_mutex(&udp_server_data->udp_server_buffer.buffer_messages_mutex,          0, 1);
+    if (platform_sem_init_mutex(&udp_server_data->udp_server_buffer.buffer_messages_counting_sem, 0, QUEUE_CAPACITY) < 0) {
+        platform_print("Counting semaphore allocation failed!\n");
+        platform_panic(-1);
+    }
+    if (platform_sem_init_mutex(&udp_server_data->udp_server_buffer.buffer_messages_mutex, 1, 1) < 0) {
+        platform_print("Mutex semaphore allocation failed!\n");
+        platform_panic(-1);
+    }
+    udp_server_data->socket_fd = platform_socket_create_udp();
+    if (udp_server_data->socket_fd < 0) {
+        platform_print("Socket creation failed\n");
+        platform_panic(-1);
+    }
+    platform_print("server - socket created\n");
+
+    server_socket_set_server_info(&udp_server_data->server_info, SERVER_PORT);
+    udp_server_data->size_of_server_info = (platform_socklen_t)sizeof(udp_server_data->server_info);
+    udp_server_data->udp_server_buffer.buffer_max_size      = BUFFER_SIZE;
+    udp_server_data->udp_server_buffer.buffer_max_line_size = BUFFER_SIZE;
+    udp_server_data->stop_server                            = 0;
+    
+    server_socket_bind(udp_server_data->socket_fd, &udp_server_data->server_info, &udp_server_data->size_of_server_info);
+    
+    return udp_server_data;
 }
 
-//?? #ifdef DEBUG_UDP_SERVER
-void printDataAsString(uint8_t *packetData, size_t dataLength)
+int server_buffer_push(char *data, int size_of_data)
 {
-    Serial.print("Received packet from server with ");
-    Serial.print(dataLength);
-    Serial.println(" bytes");
+    udp_server_buffer_t *buffer_data = &udp_server_data->udp_server_buffer;
+    platform_sem_wait(&buffer_data->buffer_messages_mutex);
 
-    // Print received data on the serial monitor (for debug purposes)
-    Serial.println("Printing received data as string...");
-    for (size_t i = 0; i < dataLength; i++)
+    if (buffer_data->buffer_is_full)
     {
-        // Print only if it contains printable characters
-        if (packetData[i] >= 32 && packetData[i] <= 126)
+        platform_sem_post(&buffer_data->buffer_messages_mutex);
+        return -1;
+    }
+
+    int head             = buffer_data->buffer_messages_head;
+    int max_size         = buffer_data->buffer_max_size;
+    int max_line_size    = buffer_data->buffer_max_line_size;
+    int next             = (head + 1 == max_size) ? 0 : head + 1;
+    int saturated_size   = (size_of_data > max_line_size) ? max_line_size : size_of_data;
+
+    memset(buffer_data->buffer_messages[head], 0, max_line_size);
+    strncpy(buffer_data->buffer_messages[head], data, saturated_size);
+    buffer_data->buffer_messages[head][saturated_size] = '\0';
+
+    buffer_data->buffer_messages_head = next;
+    if (next == buffer_data->buffer_messages_tail)
+        buffer_data->buffer_is_full = 1;
+
+    platform_sem_post(&buffer_data->buffer_messages_counting_sem);
+    platform_sem_post(&buffer_data->buffer_messages_mutex);
+    return 0;
+}
+
+int server_buffer_pop(char *dest_data)
+{
+    udp_server_buffer_t *buffer_data = &udp_server_data->udp_server_buffer;
+    platform_sem_wait(&buffer_data->buffer_messages_counting_sem);
+    platform_sem_wait(&buffer_data->buffer_messages_mutex);
+
+    int tail          = buffer_data->buffer_messages_tail;
+    int max_size      = buffer_data->buffer_max_size;
+    int next          = (tail + 1 == max_size) ? 0 : tail + 1;
+
+    char *src         = buffer_data->buffer_messages[tail];
+    int   src_size    = strlen(src);
+    memcpy(dest_data, src, src_size);
+    dest_data[src_size] = '\0';
+
+    buffer_data->buffer_messages_tail = next;
+    buffer_data->buffer_is_full       = 0;
+
+    platform_sem_post(&buffer_data->buffer_messages_mutex);
+    return 0;
+}
+
+void server_listen_port()
+{
+    platform_flag_t buffer_is_full = 0;
+    char            single_message_buffer[BUFFER_SIZE];
+    platform_ssize_t recv_bytes = 0;
+    char            should_exit = 0;
+
+    // Initialize client address structure size mapping
+    udp_server_data->size_of_client_info = (platform_socklen_t)sizeof(udp_server_data->client_info);
+    
+    platform_print("udp server - Starting listening loop...\n");
+
+    do
+    {
+        // Thread-safe status check on the internal message queue
+        platform_sem_wait(&udp_server_data->udp_server_buffer.buffer_messages_mutex);
+        buffer_is_full = udp_server_data->udp_server_buffer.buffer_is_full;
+        platform_sem_post(&udp_server_data->udp_server_buffer.buffer_messages_mutex);
+
+        // Core processing cycle: Active while space remains and stop hasn't been requested
+        while (!buffer_is_full && !udp_server_data->stop_server)
         {
-            Serial.print((char)packetData[i]);
-        }
-        else
-        {
-            Serial.print(".");
-        }
-        Serial.println();
-    }
-}
-//?? #endif
+            // Blocking call to capture incoming raw network payloads
+            recv_bytes = server_socket_wait_packets(
+                udp_server_data->socket_fd,
+                single_message_buffer,
+                BUFFER_SIZE,
+                (platform_sockaddr_t *)&udp_server_data->client_info,
+                &udp_server_data->size_of_client_info);
 
-//?? #ifndef DEBUG_UDP_SERVER
-// void printDataAsString(uint8_t *packetData, size_t dataLength)
-// {
-// }
-//?? #endif
+            if (recv_bytes > 0)
+            {
+                platform_print("udp server - Received packet. Size: %d bytes\n", (int)recv_bytes);
+                
+                // Transfer network payload into the main processing FIFO queue
+                if (server_buffer_push(single_message_buffer, recv_bytes) == -1)
+                {
+                    platform_print("udp server - CRITICAL: Server buffer full — message dropped\n");
+                }
+            }
+            else
+            {
+                platform_print("udp server - WARNING: Socket read error or empty payload received.\n");
+            }
+
+            // Re-verify buffer boundary conditions for the next processing frame
+            platform_sem_wait(&udp_server_data->udp_server_buffer.buffer_messages_mutex);
+            buffer_is_full = udp_server_data->udp_server_buffer.buffer_is_full;
+            platform_sem_post(&udp_server_data->udp_server_buffer.buffer_messages_mutex);
+        }
+
+        // Clean teardown cascade triggered by system shutdown flag
+        if (udp_server_data->stop_server)
+        {
+            platform_print("udp server - Shutdown flag caught. Cleaning up platform resources...\n");
+            
+            platform_sem_destroy(&udp_server_data->udp_server_buffer.buffer_messages_mutex);
+            platform_sem_destroy(&udp_server_data->udp_server_buffer.buffer_messages_counting_sem);
+            platform_socket_close(udp_server_data->socket_fd);
+            
+            should_exit = 1;
+            platform_print("udp server - Socket closed and semaphores destroyed. Exiting listener loop safely.\n");
+        }
+        else if (buffer_is_full)
+        {
+            // Backoff period if the loop broke exclusively due to a saturated buffer queue
+            platform_print("udp server - Queue saturated. Throttling active read loop for 3000ms...\n");
+            platform_sleep_ms(3000);
+        }
+
+    } while (!should_exit);
+}

@@ -122,7 +122,9 @@ typedef enum
     ConfigFields_ROUTE_POLICY = 4,
     ConfigFields_RADAR = 5,
     ConfigFields_SCREEN = 6,
-    ConfigFields_OBSTACLE_CLEANER = 10, // range gap for future updates
+    ConfigFields_LIGHTS = 7,
+    ConfigFields_BRUSHES = 9,
+    ConfigFields_OBSTACLE_CLEANER = 10,
     ConfigFields_OBJECT_LOADER = 11,
     ConfigFields_OBJECT_UNLOADER = 12,
     ConfigFields_OBJECT_COMPACTER = 13
@@ -170,7 +172,7 @@ typedef struct PropertyMsg_t{
 } PropertyMsg_t;
 
 typedef struct FeedbackMsg_t{
-    ActionResult status;
+    ActionResult_t status;
     ErrorCode_t error_code;
     char error_message[MAX_CHAR_MSG];
 }FeedbackMsg_t;

@@ -3,91 +3,34 @@
 #include "UDP_Client.h"
 #include "UDP_Server.h"
 
-Beta self;
-
-hw_timer_t *heartbeatTimer = NULL;
-
-void setupMotors();
-void setupWiFi();
-void setupHeartbeatTimer();
-void IRAM_ATTR onHeartbeatTimer();
+extern Beta_t robot_beta;
 
 void setup()
-{    
-    // Begin serial communication
+{
     Serial.begin(115200);
-    while (!Serial)
-    {
-        delay(100);
-    }
-    
-    // Setup hardware related functions
     setupMotors();
-    setupHeartbeatTimer();
-    
-    // Setup WiFi connection and communication with the server
+    setupTrunk();
+    // setupRadar();
+    // setupOled();
     setupWiFi();
-    connectToServer();
-    startUDPServer();
-
-    //todo initialize self
+    RobotStartServer();
 }
 
 void loop()
 {
-    // construct message types based on needs and events, then, sendMessage()
-    //?? -> switch case?
-}
+    checkMotorTimeouts();
+    updateTrunk();
+    // tickRadarScan();
 
-void setupMotors()
-{
-    // Set all motor control pins to OUTPUT
-    pinMode(MOTOR_1A_PIN, OUTPUT);
-    pinMode(MOTOR_1B_PIN, OUTPUT);
-    pinMode(MOTOR_2A_PIN, OUTPUT);
-    pinMode(MOTOR_2B_PIN, OUTPUT);
-
-    // Initial state: motors are turned off
-    digitalWrite(MOTOR_1A_PIN, LOW);
-    digitalWrite(MOTOR_1B_PIN, LOW);
-    digitalWrite(MOTOR_2A_PIN, LOW);
-    digitalWrite(MOTOR_2B_PIN, LOW);
-}
-
-void setupWiFi()
-{
-    WiFi.mode(WIFI_STA);
-    // WiFi.begin(wifi_ssid, wifi_password);
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    
-    Serial.println("Connecting to WiFi");
-    Serial.print("SSID: ");
-    Serial.println(WIFI_SSID);
-    while (WiFi.status() != WL_CONNECTED)
-    {
-        delay(500);
-        Serial.print(".");
+    if (robot_beta.trunkState == TRUNK_ERROR) {
+        // check how to signal the error and how to behave
+        // logMessage(ErrorSeverity_t::ErrorSeverity_t_HIGH ,"trunk critical error. Shutting down functionality");
+        // robot_beta.object_unloader = 0; // will be cleared only with an hard reset (expecting a manual fix)
+        // robot_beta.robot_state = RobotState_t::RobotState_ERR;
     }
-    
-    Serial.println("");
-    Serial.print("Connected! IP Address: ");
-    Serial.println(WiFi.localIP());
-}
-
-void setupHeartbeatTimer()
-{
-    heartbeatTimer = timerBegin(0, 80, true); // Timer 0, Clock divider 80
-    timerAttachInterrupt(heartbeatTimer, &onHeartbeatTimer, true);
-    timerAlarmWrite(heartbeatTimer, 2000000, true); // Trigger every 2 seconds
-    timerAlarmEnable(heartbeatTimer);
-}
-
-/// Heartbeat timer ISR
-void IRAM_ATTR onHeartbeatTimer()
-{
-   checkConnection();
-
-   // identify robot state, send heartbeat
-   sendMessage(heartbeatMessage());
-   return;
+    if(robot_beta.radar.obstacleDetected){
+        // check if here is needed to be managed or only inside the move car stuff (maybe set a flag like robot_beta.canCarProceed)
+        logMessage(ErrorSeverity_t::ErrorSeverity_t_HIGH ,"radar detected an obstacle. Going to prevent car from moving in direction Direction_FORWARD until the road is clear");
+        robot_beta.robot_state = RobotState_t::RobotState_ERR;
+    }
 }

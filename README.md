@@ -29,14 +29,13 @@ Here are all the required componets for each of the robots:
 <h3 style="text-align: center;">Charlie</h3>
 <center><img src="./assets/Charlie_pinout.png" style="width:400; height:auto;" /></center>  
 
-- 1x ESP32 board
-- 4x DC motors
+- 1x ESP32 board DevKit 36 GPIOs
+- 4x DC motors N30
 - 2x Drivers DRV8833
-- 1x Servo motor
-- 1x Radar module
-- 1x OLED screen **(size?)**
+- 1x Servo motor SG90
+- 1x Radar module VL53L0X
+- 1x I2C generic OLED screen 0.91"
 - 2x LED lights (red, green)
-- 1x Battery **(more specifically?)**
 - Custom 3D-printed structure, including:
   - 1x Base
   - 4x Wheels
@@ -46,14 +45,13 @@ Here are all the required componets for each of the robots:
 <h3 style="text-align: center;">Delta</h3>
 <center><img src="./assets/Delta_pinout.png" style="width:400; height:auto;" /></center>  
 
-- 1x ESP32 board
-- 2x DC motors
+- 1x ESP32 board DevKit 36 GPIOs
+- 2x DC motors N30
 - 1x Driver DRV8833
-- 3x Servo motors
-- 1x Radar module
-- 1x OLED screen **(size?)**
+- 3x Servo motors SG90
+- 1x Radar module VL53L0X
+- 1x I2C generic OLED screen 0.91"
 - 2x LED lights (red, green)
-- 1x Battery **(more specifically?)**
 - Custom 3D-printed structure, including:
   - 1x Base
   - 4x Wheels
@@ -63,14 +61,13 @@ Here are all the required componets for each of the robots:
 <h3 style="text-align: center;">Beta</h3>
 <center><img src="./assets/Beta_pinout.png" style="width:400; height:auto;" /></center>  
 
-- 1x ESP32 board
-- 3x DC motors
+- 1x ESP32 board DevKit 36 GPIOs
+- 3x DC motors N30
 - 2x Drivers DRV8833
-- 1x Servo motor
-- 1x Radar module
-- 1x OLED screen **(size?)**
+- 1x Servo motor SG90
+- 1x Radar module VL53L0X
+- 1x I2C generic OLED screen 0.91"
 - 2x LED lights (red, blue)
-- 1x Battery **(more specifically?)**
 - Custom 3D-printed structure, including:
   - 1x Base
   - 4x Wheels

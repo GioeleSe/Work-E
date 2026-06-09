@@ -15,7 +15,7 @@ void setupRadar()
     robot_beta.radar.scanSum = 0.0f;
     robot_beta.radar.scanValidCount = 0;
 
-    internalSetupServo();
+    // internalSetupServo(); // not working properly as it gets random movements that can damage the board
     internalSetupDistanceSensor();
 }
 void internalSetupServo()
@@ -78,7 +78,7 @@ void moveRadarToAngle(int target_angle)
     motorTimeouts[MOTOR_RADAR].isActive = true;
     motorTimeouts[MOTOR_RADAR].stopTime = millis() + duration;
 
-    logMessage(ErrorSeverity_t::ErrorSeverity_t_LOW, "moving radar to specified angle");
+    // logMessage(ErrorSeverity_t::ErrorSeverity_t_LOW, "moving radar to specified angle");
 }
 // non-blocking radar scan tick. Called in the main loop.
 // updates here the distance readings when the servo is not moving, compute the results at the end.

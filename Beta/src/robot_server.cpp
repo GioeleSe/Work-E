@@ -552,6 +552,7 @@ int motor_control_handler(uint16_t command_uuid, MotorControlPayload_t* motor_co
                 break;
                 case Direction_t::Direction_STOP:
                 default:                                            // stop the robot even if the direction has an invalid value (safety and common sense)
+                    platform_print("calling car stop command");
                     self_motion_car_stop();
                 break;
             }

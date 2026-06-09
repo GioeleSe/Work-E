@@ -1,12 +1,14 @@
 #include "Beta.h"
 #include "robot_types.h"
 #include "main_robot.h"
+#include "udp_client.h"
 #include "common_platform_abstr.h"
 #include "car_motion.h"
 #include "trunk_motion.h"
 #include "radar_motion.h"
 #include "dcmotor_motion.h"
 
+#include <Arduino.h>
 #include <WiFi.h>
 #include <Adafruit_SSD1306.h>
 #include <WiFiManager.h> // pololu lib (lighter than adafruit one)
@@ -41,6 +43,7 @@ const DC_Motor_Config_t motor_pins[] = {
 };
 const int NUM_MOTORS = sizeof(motor_pins) / sizeof(DC_Motor_Config_t);
 Motor_Timeout_t motorTimeouts[NUM_MOTORS] = {0};
+extern SemaphoreHandle_t oledMutex;
 
 
 int self_prop_get_robot_id() { return robot_beta.robotID; }
@@ -92,6 +95,18 @@ void setupWiFi()
         logMessage(ErrorSeverity_t::ErrorSeverity_t_MID, "WiFiManager setup done successfully. IP Address:");
         logMessage(ErrorSeverity_t::ErrorSeverity_t_MID, WiFi.localIP().toString().c_str());
         delay(500);
+        JsonDocument doc;
+        doc["protocol"]     = "robot-net/1.0";
+        doc["robot_id"]     = self_prop_get_robot_id();
+        doc["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
+        doc["request_id"]   = 0;
+        doc["mode"]         = (int)MessageMode_t::MessageMode_MANUAL;
+        doc["timestamp"]    = (long)time(NULL);
+        doc["payload"]["event"] = "online";
+        char buf[256];
+        ssize_t len = serializeJson(doc, buf);
+        client_send_packet(buf, len);
+        logMessage(ErrorSeverity_t::ErrorSeverity_t_LOW, "Robot Online notification sent");
     }
     else
     {
@@ -106,29 +121,45 @@ void setupWiFi()
 void setupOled()
 {
     Wire.begin(PIN_OLED_SDA, PIN_OLED_SCL);
-    Wire.setClock(400000); // 400kHz refresh for Oled responsiveness
-    if (!robot_beta.display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS))
+    Wire.setClock(100000); // safer than 400k for debugging
+
+    robot_beta.display = new Adafruit_SSD1306(
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT,
+        &Wire,
+        OLED_RESET
+    );
+
+    if (!robot_beta.display->begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS))
     {
-        Serial.println("SSD1306 allocation failed");
-        robot_beta.screen = 0; // screen state update (failed -> force status to 0)
+        logMessage(ErrorSeverity_t::ErrorSeverity_t_MID, "oled failed");
+        robot_beta.screen = 0;
         return;
     }
 
-    robot_beta.display.clearDisplay();
-    robot_beta.display.display();
     robot_beta.screen = 1;
+
+    robot_beta.display->clearDisplay();
+    robot_beta.display->display();
+
+    oledPrint("BETA - INIT OK");
 }
 void oledPrint(const char *message)
 {
     if (!robot_beta.screen)
-    return;
+        return;
 
-    robot_beta.display.clearDisplay();
-    robot_beta.display.setCursor(0, 0);
-    robot_beta.display.setTextSize(1);
-    robot_beta.display.setTextColor(SSD1306_WHITE);
-    robot_beta.display.print(message);
-    robot_beta.display.display();
+    if (xSemaphoreTake(oledMutex, portMAX_DELAY))
+    {
+        robot_beta.display->clearDisplay();
+        robot_beta.display->setTextSize(1);
+        robot_beta.display->setTextColor(SSD1306_WHITE);
+        robot_beta.display->setCursor(0, 0);
+        robot_beta.display->println(message);
+        robot_beta.display->display();
+
+        xSemaphoreGive(oledMutex);
+    }
 }
 
 // void setupHeartbeatTimer()
@@ -169,9 +200,9 @@ void setupBuzzer(){
 // blocking during the beep sequence, then resets the flag to 0
 void updateBuzzer()
 {
-    if (!robot_beta.buzzer) return;
+    if (robot_beta.buzzer<=0) return;
 
-    logMessage(ErrorSeverity_t::ErrorSeverity_t_LOW, "buzzer: playing beep sequence");
+    logMessage(ErrorSeverity_t::ErrorSeverity_t_MID, "buzzer: playing beep sequence");
 
     for (int i = 0; i < BUZZER_BEEP_COUNT; i++)
     {
@@ -363,6 +394,8 @@ int self_motion_stop_motor(Motors_t motor_id)
         logMessage(ErrorSeverity_t::ErrorSeverity_t_HIGH, "invalid motor id, returning error from stop_motor");
         return -1;
     }else if(motor_id >= 1 && motor_id <= 3){
+        motorTimeouts[MOTOR_RADAR].isActive = false;
+        motorTimeouts[MOTOR_RADAR].stopTime = 0;
         ledcWrite(motor_pins[motor_id].pinA, 0);
         ledcWrite(motor_pins[motor_id].pinB, 0);
     }else if(motor_id == 4){

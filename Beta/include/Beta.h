@@ -25,7 +25,7 @@
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 32
 #define OLED_RESET    -1 
-#define SCREEN_ADDRESS 0x3C
+#define SCREEN_ADDRESS 0x3D   // 0x3D if 0x3C doesnt work
 
 // Control pins for motors 1-2 (Car movements) and trunk
 #define DRIVER_PWM_FREQ 20000
@@ -116,11 +116,9 @@ typedef struct Beta_t {
     unsigned long trunkStartTime     = 0;
     int moveTrunkCmd                 = -1;
     int buzzer                       = 0;
-    Adafruit_SSD1306 display;
+    Adafruit_SSD1306* display;
     TwoWire radarWire;
-
-    Beta_t() : display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET),
-               radarWire(1)
+    Beta_t() : radarWire(1)
     {}
 } Beta_t;
 

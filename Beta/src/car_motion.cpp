@@ -53,10 +53,13 @@ int self_motion_car_proceed(Direction_t direction)
 int self_motion_car_stop()
 {
     logMessage(ErrorSeverity_t::ErrorSeverity_t_LOW, "function self_motion_car_stop called");
-    if(!self_motion_stop_motor(MOTOR_CAR_LEFT) || self_motion_stop_motor(MOTOR_CAR_RIGHT)){
+    int res = self_motion_stop_motor(MOTOR_CAR_LEFT);
+    res = self_motion_stop_motor(MOTOR_CAR_RIGHT);
+    if(!res){
         logMessage(ErrorSeverity_t::ErrorSeverity_t_HIGH, "car was unable to stop. stop_motor returned an error");
         return -1;
     }
+    
     logMessage(ErrorSeverity_t::ErrorSeverity_t_LOW, "car motors deactivated successfully by car_stop");
     return 0;
 }

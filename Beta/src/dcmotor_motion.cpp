@@ -69,7 +69,7 @@ void checkMotorTimeouts()
                 if(robot_beta.isRequiredStop){
                     logMessage(ErrorSeverity_t::ErrorSeverity_t_LOW, "motor stopped by emergency button");
                 }else{
-                    logMessage(ErrorSeverity_t::ErrorSeverity_t_LOW, "motor timed out and stopped automatically");
+                    // logMessage(ErrorSeverity_t::ErrorSeverity_t_LOW, "motor timed out and stopped automatically");
                 }
                     
             }

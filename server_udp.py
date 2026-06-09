@@ -113,6 +113,7 @@ class UDPMessage:
         self.protocol = protocol
         self.message_type = message_type
         self.request_id = request_uuid
+        self.request_uuid = request_uuid
         self.mode = mode
         self.payload = payload
         self.timestamp = datetime.datetime.now(timezone.utc)
@@ -123,6 +124,7 @@ class UDPMessage:
             "protocol": self.protocol,
             "message_type": _serialize_value(self.message_type),
             "request_id": int.from_bytes(self.request_id, 'big'),
+            "request_uuid": int.from_bytes(self.request_uuid, 'big'),
             "mode": _serialize_value(self.mode),
             "timestamp": int(self.timestamp.timestamp()),
             "payload": _serialize_value(self.payload),
@@ -261,7 +263,7 @@ class UDPServer:
         self.robot_ip_table = {
             1: '192.168.137.101',
             2: '192.168.137.102',
-            3: '192.168.137.103',
+            3: '192.168.137.203',
         }
         self.robot_last_seen_table = {}
 
@@ -386,12 +388,14 @@ class UDPServer:
 
     def feedback_handler(self, robot_id, message_type, msg):
         request_id = msg.get("request_id")
+        request_uuid = msg.get("request_uuid")
         payload = msg.get("payload", {})
         self.http_server.emit(
             "robot_feedback",
             {
                 "robot_id": robot_id,
                 "request_id": request_id,
+                "request_uuid": request_uuid,
                 **payload
             }
         )

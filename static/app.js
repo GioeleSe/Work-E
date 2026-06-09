@@ -89,6 +89,8 @@ function socket_message(type, data) {
                 "feedback",
                 `Robot ${data.robot_id}: Radar got closest obstacle at ${data.min_distance_mm} mm`
             );
+          const radarEl = document.getElementById("radar-distance");
+            if(radarEl) radarEl.innerText = data.min_distance_mm + " mm";
             break;
 
         case "radar_scan":
@@ -275,7 +277,20 @@ function emergency_stop() {
     msg.mode = "manual";
     msg.endpoint = "command";
     msg.cmd = "stop";
-    msg.argc = null;
+    msg.argc = "stop";
+
+    socket_send(msg);
+}
+
+
+function reset() {
+    console.info("Reset requested");
+
+    let msg = {...SOCKET_PACKET_STRUCTURE};
+    msg.mode = "manual";
+    msg.endpoint = "command";
+    msg.cmd = "reset";
+    msg.argc = "reset";
 
     socket_send(msg);
 }
@@ -333,6 +348,11 @@ function set_property(feature, action) {
 
         case "CLAW":
             msg.cmd = "OBJECT_LOADER";
+            msg.argc = Number(action);
+            break;
+
+        case "NAVIGATION_TYPE": // used by Beta for horn feature
+            msg.cmd = "NAVIGATION_TYPE";
             msg.argc = Number(action);
             break;
 

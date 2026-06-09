@@ -238,7 +238,7 @@ class HTTPServer:
                 self.udp_server.send_motor_control(destination=dest_robot, motor_id=[3, 4],
                                                    direction=Direction.FORWARD if argc else Direction.STOP, angle=0)
             elif prop == ConfigProperty.OBJECT_LOADER:
-                pass
+                self.udp_server.send_set_property(destination=dest_robot, prop=prop, value=argc)
             else:
                 self.udp_server.send_set_property(destination=dest_robot, prop=prop, value=argc)
         else:

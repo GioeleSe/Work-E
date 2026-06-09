@@ -38,7 +38,6 @@ Here are all the required componets for each of the robots:
   - 1x Base
   - 4x Wheels
   - 2x Rotating arms (to sweep obstacles away)
-  - **(anything else?)**
 
 <h3 style="text-align: center;">Delta</h3>
 <center><img src="./assets/Delta_pinout.png" style="width:400; height:auto;" /></center>  
@@ -54,7 +53,6 @@ Here are all the required componets for each of the robots:
   - 1x Base
   - 4x Wheels
   - x1 Gripper (to collect paper blocks)
-  - **(anything else?)**
 
 <h3 style="text-align: center;">Beta</h3>
 <center><img src="./assets/Beta_pinout.png" style="width:400; height:auto;" /></center>  
@@ -70,7 +68,6 @@ Here are all the required componets for each of the robots:
   - 1x Base
   - 4x Wheels
   - 1x Trunk (to carry and discharge paper blocks)
-  - **(anything else?)**
 
 ### Software
 - [Visual Studio Code](https://code.visualstudio.com/)
@@ -89,19 +86,25 @@ inserire schemino bellissimo (da fare dopo il mega merge)
 
 
 ## How to build and run the project
-**(This part should be refined)**  
 
-The robots come fully assembled already, therefore it is only needed to setup the corresponding softwares, burn it onto the ESP boards, setup the Python server and connect to the control interface using your smartphone.  
+The robots come fully assembled already, therefore it is only needed to setup the corresponding softwares, burn it onto the ESP boards, setup the Python server and connect to the control interface using your smartphone.
+
+**Network setup:**
+All robots and the server share the same WiFi hotspot. Before starting anything:
+Create a WiFi hotspot on the machine that will run the server, using these credentials:
+SSID: local_hotspot
+Password: esp32_mcu
+The server machine will always be reachable at 192.168.137.1 (hotspot gateway). No additional network configuration is needed, since each robot sends an online notification that the server uses to register its IP automatically.
 
 ### Steps
-1. Clone this repository
-2. Open the project both in VS Code and Pycharm
-3. **In VS Code:** For each robot, build the respective project in **(ADD PATH HERE)** and burn it on its respective board
-4. **In Pycharm:** Go to **(ADD PATH HERE)** and run the corresponding script to launch the server
-5. Using your smartphone, connect to the server to access the remote controller
+1. Clone this repository.
+2. Open the project both in VS Code and Pycharm.
+3. **In VS Code:** For each robot, build the respective project and burn it on its respective board, using "Upload and Monitor".
+4. **In Pycharm:** Run the server starting executing main.py to launch the server.
+5. Start the server before powering the robots. If the server is not running at that moment, the IP mapping will be missing until the robot reboots.
+6. Using your smartphone, connect to the server to access the remote controller.
 
 
-## User guide
 # User Guide
 
 The robot control system is accessed through a web-based interface that allows users to remotely monitor and operate a robot in real time.
@@ -132,6 +135,8 @@ The right panel provides access to robot settings and auxiliary functions:
 * **Speed Slider**: Adjusts the robot's movement speed.
 * **Headlights Switch**: Turns the robot's headlights on or off.
 * **Move Trunk Controls**: Raises or lowers the trunk mechanism.
+* **Brushes Toggle**: turns both brush motors on/off.
+* **Claw Controls**: Controls the claw mechanism.
 * **Radar Distance Indicator**: Displays the minimum distance detected by the radar sensor.
 * **Horn Button**: Activates the robot horn.
 * **Reset Button**: Sends a reset command to the robot and restores its default operating state.

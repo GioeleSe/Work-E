@@ -90,14 +90,14 @@ const FieldDef expected_fields[] = {
     {"protocol",     [](JsonVariantConst v){ return v.is<const char*>(); }},
     {"robot_id",     [](JsonVariantConst v){ return v.is<int>(); }},
     {"message_type", [](JsonVariantConst v){ return v.is<int>(); }},
-    {"request_id",   [](JsonVariantConst v){ return v.is<int>(); }},
+    {"request_uuid",   [](JsonVariantConst v){ return v.is<int>(); }},
     {"mode",         [](JsonVariantConst v){ return v.is<int>(); }},
     {"payload",      [](JsonVariantConst v){ return v.is<JsonObjectConst>(); }},
     {"timestamp",    [](JsonVariantConst v){ return v.is<long>(); }}
 };
 
 // check for common non-null needed (header) fields:
-// header fields = "protocol", "robot_id", "message_type", "request_id", "mode", "payload", "timestamp"
+// header fields = "protocol", "robot_id", "message_type", "request_uuid", "mode", "payload", "timestamp"
 // (check for both presence and type)
 // obv return -1 for errors
 int check_fields(const JsonDocument& json_doc){
@@ -618,7 +618,7 @@ int PacketHandler(char* packet, ssize_t packet_size){
     const char* protocol = json_doc["protocol"].as<const char*>();
     int robot_id = json_doc["robot_id"].as<int>();
     int message_type = json_doc["message_type"].as<int>();
-    int request_id = json_doc["request_id"].as<int>();
+    int request_id = json_doc["request_uuid"].as<int>();
     int mode = json_doc["mode"].as<int>();
     JsonObject payload = json_doc["payload"].as<JsonObject>();
     long timestamp = json_doc["timestamp"].as<long>();

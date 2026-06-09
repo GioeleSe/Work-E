@@ -1,8 +1,8 @@
 #ifndef UDP_SERVER_H
 #define UDP_SERVER_H
 
-// #define PLATFORM_ESP32
-#define PLATFORM_LINUX
+#define PLATFORM_ESP32
+// #define PLATFORM_LINUX
 
 #include "common_platform_abstr.h"
 
@@ -10,13 +10,14 @@
 #error "[udp_server.h] No platform defined. Compile defining PLATFORM_LINUX or PLATFORM_ESP32"
 #endif
 
-#define SERVER_PORT 8181
-#define BUFFER_SIZE 1024
+#define SERVER_PORT 8000
+#define BUFFER_SIZE 256
+#define BUFFER_QUEUE_SIZE 8
 
 typedef struct udp_server_buffer_t {
     platform_sem_t buffer_messages_counting_sem;                             // use this one to wait for new messages
     platform_sem_t buffer_messages_mutex;                                    // use this semaphore to access the buffer and its descriptors
-    char buffer_messages[BUFFER_SIZE][BUFFER_SIZE];                 // byte buffer,
+    char buffer_messages[BUFFER_QUEUE_SIZE][BUFFER_SIZE];           // byte buffer,
     int buffer_max_size;                                            // row max count, set initially then constant to BUFFER_SIZE or some multiple of it
     int buffer_max_line_size;                                       // column max count, set initially then constant to BUFFER_SIZE
     int buffer_messages_head;

@@ -15,13 +15,13 @@ platform_socket_fd_t socket_init(){
 }
 
 int socket_send_message(const platform_socket_fd_t sockfd, const char* msg, const platform_ssize_t msg_size, const platform_sockaddr_t* server_info, platform_socklen_t* size_of_server_info){
-    int send_result = platform_socket_sendto(sockfd, msg, msg_size, 0, server_info, *size_of_server_info);
+    int send_result = platform_socket_sendto(sockfd, msg, msg_size, server_info, *size_of_server_info);
     platform_print("client - message sent.\n");
     return send_result;
 }
 
 platform_ssize_t socket_get_message(const platform_socket_fd_t sockfd, char* buffer, const int buffer_size, platform_sockaddr_t* server_info, platform_socklen_t* size_of_server_info){
-    platform_ssize_t n = platform_socket_recvfrom(sockfd, buffer, (platform_ssize_t)buffer_size, 0, server_info, size_of_server_info);
+    platform_ssize_t n = platform_socket_recvfrom(sockfd, buffer, (platform_ssize_t)buffer_size, server_info, size_of_server_info);
     if(n<0){
         platform_print("client - Receive function error, exit code %ld\n", n);
         platform_panic(-1);
@@ -40,20 +40,34 @@ void client_socket_set_server_info(platform_sockaddr_in_t* server_info, const in
     server_info->sin_addr.s_addr = inet_addr(server_address);       // provided by lwIP API too
 }
 
+// persistent socket — created once, reused for all sends
+static platform_socket_fd_t _client_sockfd = -1;
+static platform_sockaddr_in_t _client_server_info;
+static platform_socklen_t _client_server_info_size;
+
+static void client_ensure_socket(){
+    if(_client_sockfd >= 0) return;
+    _client_sockfd = platform_socket_create_udp();
+    client_socket_set_server_info(&_client_server_info, SERVER_PORT, SERVER_ADDRESS);
+    _client_server_info_size = (platform_socklen_t)sizeof(_client_server_info);
+    platform_print("client - persistent socket created\n");
+}
+
 // mainly function used from other files.
-// initialize the socket and send a string message
+// initialize the socket (once) and send a string message
 // return -1 if the send failed
 // Note: use function serializeJson(json_doc, char_msg) to pass the string message
 int client_send_packet(char* msg, platform_ssize_t msg_size){
-    platform_sockaddr_in_t server_info;
-    platform_socket_fd_t sockfd = platform_socket_create_udp();
-    client_socket_set_server_info(&server_info, SERVER_PORT, SERVER_ADDRESS);  
-    platform_socklen_t size_of_server_info = (platform_socklen_t)sizeof(server_info);
-    int send_result = socket_send_message(sockfd, msg, msg_size, (platform_sockaddr_t *)&server_info, &size_of_server_info);
+    client_ensure_socket();
+    int send_result = socket_send_message(_client_sockfd, msg, msg_size, (platform_sockaddr_t *)&_client_server_info, &_client_server_info_size);
     if((RETRY_SEND_MESSAGE) && (send_result < 0)){
+        // socket may be broken — recreate it and retry
+        platform_socket_close(_client_sockfd);
+        _client_sockfd = -1;
+        client_ensure_socket();
         int attempt_counter = 0;
         do{
-            send_result = socket_send_message(sockfd, msg, msg_size, (platform_sockaddr_t *)&server_info, &size_of_server_info);
+            send_result = socket_send_message(_client_sockfd, msg, msg_size, (platform_sockaddr_t *)&_client_server_info, &_client_server_info_size);
             attempt_counter++;
         }while(send_result < 0 && (attempt_counter < RETRY_SEND_MESSAGE_MAX_ATTEMPTS));
     }

@@ -26,7 +26,7 @@ void server_socket_bind(const platform_socket_fd_t sockfd, platform_sockaddr_in_
     platform_print("binding on port %d, fd %d, size %d\n", 
     ntohs(server_info->sin_port), sockfd, *size_of_server_info);    // valid function in both platforms
 
-    if (platform_socket_bind(sockfd, (platform_sockaddr_t *)server_info, *size_of_server_info) < 0)
+    if (platform_socket_bind(sockfd, (const platform_sockaddr_t *)server_info, *size_of_server_info) < 0)
     {
         platform_print("bind failed");
         // exit(EXIT_FAILURE);
@@ -37,7 +37,7 @@ void server_socket_bind(const platform_socket_fd_t sockfd, platform_sockaddr_in_
 }
 
 platform_ssize_t server_socket_wait_packets(const platform_socket_fd_t sockfd, char* buffer, const int buffer_size, platform_sockaddr_t* client_info, platform_socklen_t* size_of_client_info){
-    platform_ssize_t n = platform_socket_recvfrom(sockfd, buffer, buffer_size-1, 0, client_info, size_of_client_info);
+    platform_ssize_t n = platform_socket_recvfrom(sockfd, buffer, buffer_size-1, client_info, size_of_client_info);
     if (n > 0 && n < buffer_size) {
         buffer[n] = '\0';
     }
@@ -45,7 +45,7 @@ platform_ssize_t server_socket_wait_packets(const platform_socket_fd_t sockfd, c
 }
 
 void server_socket_send_message(const platform_socket_fd_t sockfd, const char* msg, const size_t msg_size, const platform_sockaddr_t* client_info, platform_socklen_t* size_of_client_info){
-    platform_ssize_t n = platform_socket_sendto(sockfd, msg, msg_size, 0, client_info, *size_of_client_info);
+    platform_ssize_t n = platform_socket_sendto(sockfd, msg, msg_size, client_info, *size_of_client_info);
     if(n<0){
         platform_print("server - sendto function error, exit code %ld\n", n);
         // exit((int)n);
@@ -91,9 +91,9 @@ udp_server_data_t* server_init(){
     udp_server_data.size_of_server_info = (platform_socklen_t)sizeof(udp_server_data.server_info);
     server_socket_bind(udp_server_data.socket_fd, (platform_sockaddr_in_t*)&udp_server_data.server_info, &udp_server_data.size_of_server_info);
 
-    platform_sem_init(&udp_server_data.udp_server_buffer.buffer_messages_mutex, 0, 1);
-    platform_sem_init(&udp_server_data.udp_server_buffer.buffer_messages_counting_sem, 0, 255);
-    udp_server_data.udp_server_buffer.buffer_max_size = BUFFER_SIZE;
+    platform_sem_init_mutex(&udp_server_data.udp_server_buffer.buffer_messages_mutex, 1, 1);
+    platform_sem_init_mutex(&udp_server_data.udp_server_buffer.buffer_messages_counting_sem, 0, 255);
+    udp_server_data.udp_server_buffer.buffer_max_size = BUFFER_QUEUE_SIZE;
     udp_server_data.udp_server_buffer.buffer_max_line_size = BUFFER_SIZE;
     return &udp_server_data;
 }
@@ -165,7 +165,9 @@ void server_listen_port(){
         platform_sem_post(&udp_server_data.udp_server_buffer.buffer_messages_mutex);
 
         while((!buffer_is_full) && (!udp_server_data.stop_server)){        // get new messages up to max capacity (no message priority)
+            platform_print("waiting for packet...\n");
             recv_bytes = server_socket_wait_packets(udp_server_data.socket_fd, single_message_buffer, BUFFER_SIZE, (platform_sockaddr_t* )&udp_server_data.client_info, &udp_server_data.size_of_client_info);
+            platform_print("recvfrom returned: %d\n", recv_bytes);
             if(recv_bytes>0){
                 int push_ret = server_buffer_push(single_message_buffer, recv_bytes);
                 if (push_ret == -1){

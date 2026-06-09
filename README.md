@@ -138,13 +138,15 @@ The right panel provides access to robot settings and auxiliary functions:
 
 The customized interfaces are:
 
-<center><img src="./assets/charlie_gui.jpeg" style="width: 650px; height: auto;"/></center>
 Charlie
+<center><img src="./assets/charlie_gui.jpeg" style="width: 650px; height: auto;"/></center>
 
-<center><img src="./assets/delta_gui.png" style="width: 650px; height: auto;"/></center>
 Delta 
-<center><img src="./assets/beta_gui.jpeg" style="width: 650px; height: auto;"/></center>
+<center><img src="./assets/delta_gui.png" style="width: 650px; height: auto;"/></center>
+
 Beta
+<center><img src="./assets/beta_gui.jpeg" style="width: 650px; height: auto;"/></center>
+
 ## Team members
 Alex Calò  
 Diego Emmanuel Vera Gómez  

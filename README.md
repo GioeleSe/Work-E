@@ -90,11 +90,11 @@ inserire schemino bellissimo (da fare dopo il mega merge)
 The robots come fully assembled already, therefore it is only needed to setup the corresponding softwares, burn it onto the ESP boards, setup the Python server and connect to the control interface using your smartphone.
 
 **Network setup:**
-All robots and the server share the same WiFi hotspot. Before starting anything:
-Create a WiFi hotspot on the machine that will run the server, using these credentials:
-SSID: local_hotspot
-Password: esp32_mcu
-The server machine will always be reachable at 192.168.137.1 (hotspot gateway). No additional network configuration is needed, since each robot sends an online notification that the server uses to register its IP automatically.
+- All robots and the server share the same WiFi hotspot. Before starting anything:
+- Create a WiFi hotspot on the machine that will run the server, using these credentials:
+- SSID: local_hotspot
+- Password: esp32_mcu
+- The server machine will always be reachable at 192.168.137.1 (hotspot gateway). No additional network configuration is needed, since each robot sends an online notification that the server uses to register its IP automatically.
 
 ### Steps
 1. Clone this repository.

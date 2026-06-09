@@ -24,8 +24,6 @@ This repository documents the architecture, communication flow, and API surface 
 ### Hardware
 Here are all the required componets for each of the robots:  
 
-**(pls tell me if it needs to be any more specific)**
-
 <h3 style="text-align: center;">Charlie</h3>
 <center><img src="./assets/Charlie_pinout.png" style="width:400; height:auto;" /></center>  
 
@@ -104,18 +102,49 @@ The robots come fully assembled already, therefore it is only needed to setup th
 
 
 ## User guide
-**(To be changed once we have the final version of the GUI)**
+# User Guide
 
-Here is what the remote controller GUI looks like:
+The robot control system is accessed through a web-based interface that allows users to remotely monitor and operate a robot in real time.
 
-<center><img src="./assets/GUI.jpeg" style="width: 650; height: auto;"/></center>  
+## Multi-Robot Support
 
-Each button on the screen corresponds to a different command to be performed by the robot.  
-**Note:** each robot has different skills!
+The control system supports multiple robots through a common interface. The specific robot being controlled is selected by the application configuration, and the active robot identifier is shown internally by the system. This unified design provides a consistent user experience while allowing robot-specific capabilities to be managed through the same control panel.
 
-**(insert here all the specifics)**
+<center><img src="./assets/landing_page.jpeg" style="width: 650px; height: auto;"/></center>
 
 
+The robot interfaces are divided into two main sections:
+
+## Directional Control
+
+The left panel contains the movement controls used to drive the robot:
+
+* **Forward**: Moves the robot ahead while the button is pressed.
+* **Reverse**: Moves the robot backward while the button is pressed.
+* **Left**: Rotates or steers the robot to the left.
+* **Right**: Rotates or steers the robot to the right.
+* **STOP**: Immediately halts all robot movement.
+
+## Speed & Functions
+
+The right panel provides access to robot settings and auxiliary functions:
+
+* **Speed Slider**: Adjusts the robot's movement speed.
+* **Headlights Switch**: Turns the robot's headlights on or off.
+* **Move Trunk Controls**: Raises or lowers the trunk mechanism.
+* **Radar Distance Indicator**: Displays the minimum distance detected by the radar sensor.
+* **Horn Button**: Activates the robot horn.
+* **Reset Button**: Sends a reset command to the robot and restores its default operating state.
+
+The customized interfaces are:
+
+<center><img src="./assets/charlie_gui.jpeg" style="width: 650px; height: auto;"/></center>
+Charlie
+
+<center><img src="./assets/delta_gui.jpeg" style="width: 650px; height: auto;"/></center>
+Delta 
+<center><img src="./assets/beta_gui.jpeg" style="width: 650px; height: auto;"/></center>
+Beta
 ## Team members
 Alex Calò  
 Diego Emmanuel Vera Gómez  

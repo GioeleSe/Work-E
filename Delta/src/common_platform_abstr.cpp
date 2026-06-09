@@ -1,0 +1,172 @@
+#include "common_platform_abstr.h"
+#ifdef PLATFORM_ESP32
+#include <Arduino.h>
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+int platform_sem_init(platform_sem_t *sem, int initial_val, int max_val)
+{
+#if defined(PLATFORM_ESP32)
+    if (max_val == 1) {
+        *sem = xSemaphoreCreateMutex();   // starts available (count=1), correct for mutex use
+    } else {
+        *sem = xSemaphoreCreateCounting(max_val, initial_val);
+    }
+    return (*sem == NULL) ? -1 : 0;
+#elif defined(PLATFORM_LINUX)
+    return sem_init(sem, 0, initial_val);
+#endif
+}
+
+int platform_sem_wait(platform_sem_t *sem)
+{
+#if defined(PLATFORM_ESP32)
+    return (xSemaphoreTake(*sem, portMAX_DELAY) == pdTRUE) ? 0 : -1;
+#elif defined(PLATFORM_LINUX)
+    return sem_wait(sem);
+#endif
+}
+
+int platform_sem_wait_isr(platform_sem_t *sem)
+{
+#if defined(PLATFORM_ESP32)
+    BaseType_t woken = pdFALSE;
+    BaseType_t ret = xSemaphoreTakeFromISR(*sem, &woken);
+    portYIELD_FROM_ISR(woken);
+    return (ret == pdTRUE) ? 0 : -1;
+#else
+    return 0;
+#endif
+}
+
+int platform_sem_post(platform_sem_t *sem)
+{
+#if defined(PLATFORM_ESP32)
+    return (xSemaphoreGive(*sem) == pdTRUE) ? 0 : -1;
+#elif defined(PLATFORM_LINUX)
+    return sem_post(sem);
+#endif
+}
+
+void platform_sem_destroy(platform_sem_t *sem)
+{
+#if defined(PLATFORM_ESP32)
+    vSemaphoreDelete(*sem);
+    *sem = NULL;
+#elif defined(PLATFORM_LINUX)
+    sem_destroy(sem);
+#endif
+}
+
+platform_socket_fd_t platform_socket_create_udp()
+{
+    return socket(AF_INET, SOCK_DGRAM, 0);
+}
+
+int platform_socket_bind(platform_socket_fd_t sockfd, const platform_sockaddr_t *addr, platform_socklen_t addrlen)
+{
+    return bind(sockfd, addr, addrlen);
+}
+
+platform_ssize_t platform_socket_recvfrom(platform_socket_fd_t sockfd, void *buf, platform_ssize_t len, int flags, platform_sockaddr_t *src_addr, platform_socklen_t *addrlen)
+{
+    return recvfrom(sockfd, buf, len, flags, src_addr, addrlen);
+}
+
+platform_ssize_t platform_socket_sendto(platform_socket_fd_t sockfd, const void *buf, platform_ssize_t len, int flags, const platform_sockaddr_t *dest_addr, platform_socklen_t addrlen)
+{
+    return sendto(sockfd, buf, len, flags, dest_addr, addrlen);
+}
+
+int platform_socket_close(platform_socket_fd_t fd)
+{
+    return close(fd);
+}
+
+int platform_thread_create(platform_thread_t *thread, void *(*func)(void *), void *arg, const char *name)
+{
+#ifdef PLATFORM_LINUX
+    (void)name;
+    return pthread_create(thread, NULL, func, arg);
+#elif defined(PLATFORM_ESP32)
+    _platform_task_ctx_t *ctx = (_platform_task_ctx_t *)malloc(sizeof(_platform_task_ctx_t));
+    if (!ctx) return -1;
+    ctx->func = func;
+    ctx->arg  = arg;
+    BaseType_t rc = xTaskCreate(_platform_task_wrapper, name ? name : "task",
+                                PLATFORM_THREAD_STACK_SIZE / sizeof(StackType_t),
+                                ctx, PLATFORM_THREAD_PRIORITY, thread);
+    if (rc != pdPASS) { free(ctx); return -1; }
+    return 0;
+#endif
+}
+
+int platform_thread_join(platform_thread_t thread)
+{
+#ifdef PLATFORM_LINUX
+    return pthread_join(thread, NULL);
+#elif defined(PLATFORM_ESP32)
+    while (eTaskGetState(thread) != eDeleted) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    return 0;
+#endif
+}
+
+void platform_thread_exit()
+{
+#ifdef PLATFORM_LINUX
+    pthread_exit(NULL);
+#elif defined(PLATFORM_ESP32)
+    vTaskDelete(NULL);
+#endif
+}
+
+void platform_sleep_ms(int sleep_time_ms)
+{
+#if defined(PLATFORM_ESP32)
+    vTaskDelay(sleep_time_ms / portTICK_PERIOD_MS);
+#elif defined(PLATFORM_LINUX)
+    struct timespec ts = {
+        .tv_sec  = sleep_time_ms / 1000,
+        .tv_nsec = (sleep_time_ms % 1000) * 1000000L
+    };
+    nanosleep(&ts, NULL);
+#endif
+}
+
+void platform_panic(int exit_value)
+{
+#if defined(PLATFORM_ESP32)
+    esp_restart();
+#elif defined(PLATFORM_LINUX)
+    exit(exit_value);
+#endif
+}
+
+void platform_print(const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+#if defined(PLATFORM_ESP32)
+    char buffer[256];
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    Serial.print(buffer);
+#elif defined(PLATFORM_LINUX)
+    vprintf(format, args);
+    fflush(stdout);
+#endif
+    va_end(args);
+}
+
+void platform_init_time()
+{
+    // No-op: NTP not required for robot operation
+}
+
+#ifdef __cplusplus
+}
+#endif

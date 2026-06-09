@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CHARLIE // TACTICAL CONTROL</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='/charlie_style.css') }}">
+</head>
+<body data-robot-id="1">
+
+<!-- ERROR -->
+<div class="d-none" id="container-error">
+    <h1 id="error-type">// SYSTEM FAILURE</h1>
+    <p id="error-description" style="margin-top:10px; font-size:0.75rem;"></p>
+    <small id="error-log" style="display:block; margin-top:8px; font-size:0.55rem; opacity:0.5;"></small>
+</div>
+
+<!-- CONNECTING -->
+<div id="connecting-container">
+    <h1>◈ CHARLIE — CONNECTING <span id="connecting-animation">▋</span></h1>
+    <p>INITIALIZING CONNECTION...</p>
+</div>
+
+<!-- MAIN PANEL -->
+<div class="nerv-panel d-none" id="main-container">
+
+    <!-- HEADER -->
+    <div class="nerv-header">
+        <div class="nerv-title">
+            CHARLIE
+            <span>
+                <svg width="22" height="13" viewBox="0 0 22 13" style="border-radius:2px; margin-right:3px; vertical-align:middle;">
+                    <rect x="0"  y="0" width="22" height="4.3" fill="#D52B1E"/>
+                    <rect x="0"  y="4.3" width="22" height="4.3" fill="#FFFFFF"/>
+                    <rect x="0"  y="8.6" width="22" height="4.4" fill="#0038A8"/>
+                </svg><svg width="22" height="13" viewBox="0 0 22 13" style="border-radius:2px; vertical-align:middle;">
+                    <rect x="0"    y="0" width="7.3"  height="13" fill="#009246"/>
+                    <rect x="7.3"  y="0" width="7.4"  height="13" fill="#FFFFFF"/>
+                    <rect x="14.7" y="0" width="7.3"  height="13" fill="#CE2B37"/>
+                </svg>
+            </span>
+        </div>
+        <div class="nerv-status">
+            <div class="status-dot"></div>
+            <span id="robot-state-label" style="font-size:0.55rem; letter-spacing:0.1em;">---</span>
+        </div>
+        <div class="unit-selector">
+            ROBOT
+            <select id="robot-selector" onchange="set_robot(this.value)">
+                <option value="1">ROBOT-01</option>
+                <option selected value="2">ROBOT-02</option>
+                <option value="3">ROBOT-03</option>
+                <option value="4">ROBOT-04</option>
+                <option value="0">ALL</option>
+                <option value="-1">STANDBY</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- BODY -->
+    <div class="nerv-body">
+
+        <!-- LEFT: MOVEMENT -->
+        <div class="nerv-section" id="left-container">
+            <div class="section-label">MOVEMENT VECTORS</div>
+
+            <div class="dpad">
+                <button class="dpad-btn dpad-fwd"
+                    onmousedown="drive('forward')" onmouseup="drive('stop')"
+                    ontouchstart="drive('forward')" ontouchend="drive('stop')">
+                    <span class="btn-icon">▲</span>
+                    <span class="btn-label">FWD</span>
+                </button>
+                <button class="dpad-btn dpad-lft"
+                    onmousedown="drive('left')" onmouseup="drive('stop')"
+                    ontouchstart="drive('left')" ontouchend="drive('stop')">
+                    <span class="btn-icon">◄</span>
+                    <span class="btn-label">ROT-L</span>
+                </button>
+                <div class="dpad-ctr"></div>
+                <button class="dpad-btn dpad-rgt"
+                    onmousedown="drive('right')" onmouseup="drive('stop')"
+                    ontouchstart="drive('right')" ontouchend="drive('stop')">
+                    <span class="btn-icon">►</span>
+                    <span class="btn-label">ROT-R</span>
+                </button>
+                <button class="dpad-btn dpad-rev"
+                    onmousedown="drive('reverse')" onmouseup="drive('stop')"
+                    ontouchstart="drive('reverse')" ontouchend="drive('stop')">
+                    <span class="btn-icon">▼</span>
+                    <span class="btn-label">REV</span>
+                </button>
+            </div>
+
+            <div class="abort-wrap">
+                <button class="abort-btn" onclick="emergency_stop()">ABORT</button>
+                <button class="abort-btn" style="margin-top:12px; border-color:#aa44ff; color:#aa44ff; box-shadow: 0 0 20px rgba(170,68,255,0.3); font-size:0.58rem;" onclick="reset()">RESET</button>
+            </div>
+        </div>
+
+        <!-- RIGHT: SYSTEMS -->
+        <div class="nerv-section" id="right-container">
+            <div class="section-label">SYSTEM OPERATIONS</div>
+
+            <div class="ctrl-row">
+                <span class="ctrl-label">⚡ VELOCITY</span>
+                <input type="range" class="nerv-slider"
+                    id="speed" min="10" max="100" step="1"
+                    onchange="set_property('speed', this.value)">
+            </div>
+
+            <hr class="nerv-divider">
+
+            <div class="ctrl-row">
+                <span class="ctrl-label">◉ RED LED</span>
+                <label class="nerv-toggle">
+                    <input type="checkbox" id="lights-switch" onclick="set_property('lights', this.checked)">
+                    <span class="nerv-toggle-track"></span>
+                </label>
+            </div>
+
+            <div class="ctrl-row">
+                <span class="ctrl-label">⟳ BRUSHES</span>
+                <label class="nerv-toggle">
+                    <input type="checkbox" id="brushes-switch" onclick="set_property('brushes', this.checked)">
+                    <span class="nerv-toggle-track"></span>
+                </label>
+            </div>
+
+
+            <hr class="nerv-divider">
+
+            <div class="ctrl-row">
+                <span class="ctrl-label">⌖ RADAR</span>
+                <label class="nerv-toggle">
+                    <input type="checkbox" id="radar-switch" onclick="set_property('radar', this.checked)">
+                    <span class="nerv-toggle-track"></span>
+                </label>
+            </div>
+
+            <div class="ctrl-row">
+                <span class="ctrl-label">DIST READING</span>
+                <span class="radar-value" id="radar-distance">---- mm</span>
+            </div>
+
+        </div>
+    </div>
+
+
+</div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="{{ url_for('static', filename='/app.js') }}"></script>
+</body>
+</html>

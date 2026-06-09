@@ -1,0 +1,52 @@
+CLAW
+Opened position corresponds to lower angle, higher angle is closed claw
+- MIN CLAW ANGLE = 35
+- MAX CLAW ANGLE = 95
+LEVER
+Rasied position is lower angle, lowered lever is high angle
+- MIN LEVER ANGLE = 10
+- MAX LEVER ANGLE = 70
+
+id 1 ip 192.168.137.100
+
+Commands:
+  f : forward         b : backward      x : stop wheels
+  z : turn left       v : turn right
+  q : right forward   a : right backward
+  e : left forward    d : left backward
+  u : claw open       i : claw close
+  n : lever up (step) m : lever down (step)
+  c : claw sweep      l : lever sweep
+  r : radar scan      p : radar single read
+  j : radar left      k : radar right     o : radar center
+  
+Pinout
+13: Radar Servo
+14: Led Green
+15: Led Red
+16: ---
+17: ---
+18: Gripper Servo 1
+19: Gripper Servo 2
+21: Driver 1 IN4
+22: Driver 1 IN3
+23: Driver 1 IN2
+25: Driver 1 IN1
+26: Radar SDA
+27: Radar SCL
+32: OLED SCL
+33: OLED SDA
+34: ---
+
+
+Radar section replaced (main_robot.cpp)
+
+ESP32Servo now owns the radar servo pin — no LEDC channel needed for it
+RadarState_t struct holds all scan state (replaces Beta_t.radar)
+radar_move_to() writes the target angle via radarServo.write() and sets a settle deadline (millis() + 100 + delta_degrees)
+self_radar_tick() is the adapted tickRadarScan — non-blocking state machine called every loop(). Step 0 resets and moves to the left edge of the cone; steps 1–7 read distance and advance; after all samples it sets obstacleDetected
+self_radar_scan() (blocking, 'r' command in test) now uses radarServo.write() + delay(200) per step
+Switched from continuous to single-shot readings (readRangeSingleMillimeters) to match the tick pattern
+Constants added to main_robot.h: RADAR_CONE_DEG=60, RADAR_STEP_DEG=10, RADAR_SAMPLES=7, RADAR_OBSTACLE_MM=400 — tune these after testing.
+
+CH_RADAR_SERVO removed from LEDC setup in both setup() and motor_test_entry.cpp; j/k/o now call self_motion_steer_servo.

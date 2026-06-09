@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROBOT Control Panel - Selection</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='/style.css') }}">
+    <style>
+        /* Extra styling to make the cards look great with your control-panel theme */
+        .robot-card {
+            background-color: #222;
+            border: 1px solid #444;
+            transition: transform 0.2s, border-color 0.2s;
+            color: #fff;
+        }
+        .robot-card:hover {
+            transform: translateY(-5px);
+            border-color: #0d6efd; /* Bootstrap Primary Blue */
+            box-shadow: 0 4px 15px rgba(13, 110, 253, 0.2);
+        }
+        .robot-icon {
+            font-size: 3rem;
+            color: #0d6efd;
+        }
+    </style>
+</head>
+<body id="body" class="bg-dark text-light min-vh-100 d-flex align-items-center">
+
+<div class="container py-5">
+    <div class="text-center mb-5">
+        <h1 class="display-4 fw-bold">Fleet Management</h1>
+        <p class="text-light">Select a robot from the fleet to establish a control connection</p>
+    </div>
+
+    <div class="row g-4 justify-content-center">
+
+        <div class="col-md-4">
+            <div class="card h-100 robot-card text-center p-4">
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="mb-3">
+                            <i class="bi bi-robot robot-icon"></i>
+                        </div>
+                        <h3 class="card-title h4 mb-2">Robot Beta</h3>
+                        <p class="card-text text-muted small mb-4">Heavy-duty transport unit. Check status and operational diagnostics before driving.</p>
+                    </div>
+                    <a href="/beta?robot_id=3" class="btn btn-outline-primary w-100 py-2">
+                        Control Beta <i class="bi bi-arrow-right ms-2"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card h-100 robot-card text-center p-4">
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="mb-3">
+                            <i class="bi bi-robot robot-icon text-success"></i> </div>
+                        <h3 class="card-title h4 mb-2">Robot Charlie</h3>
+                        <p class="card-text text-muted small mb-4">High-speed maneuvering unit. Equipped with automated radar and headlights.</p>
+                    </div>
+                    <a href="/charlie?robot_id=1" class="btn btn-outline-primary w-100 py-2">
+                        Control Charlie <i class="bi bi-arrow-right ms-2"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card h-100 robot-card text-center p-4">
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="mb-3">
+                            <i class="bi bi-robot robot-icon"></i>
+                        </div>
+                        <h3 class="card-title h4 mb-2">Robot Delta</h3>
+                        <p class="card-text text-muted small mb-4">Reconnaissance and mapping unit. Includes precise proximity tracking metrics.</p>
+                    </div>
+                    <a href="/delta?robot_id=2" class="btn btn-outline-primary w-100 py-2">
+                        Control Delta <i class="bi bi-arrow-right ms-2"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+</body>
+</html>

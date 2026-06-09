@@ -7,13 +7,20 @@
 // ID assigned in docs, ranging from 1 to 4
 #define SELF_ROBOT_ID 1
 
+// LEDC channel assignments for DC wheel motors (timers 1 and 2, 1000 Hz)
+// Servos are driven by ESP32Servo on timers 0 and 3 — no overlap.
+#define CH_WHEEL_R_IN1   2
+#define CH_WHEEL_R_IN2   3
+#define CH_WHEEL_L_IN3   4
+#define CH_WHEEL_L_IN4   5
+
 // Hardware pin assignments
 #define PIN_BUZZER              4
 #define PIN_RADAR_SERVO         19
 #define PIN_CLAW_SERVO          13
 #define PIN_LEVER_SERVO         18
-#define PIN_RADAR_SENSOR_SDA    26
-#define PIN_RADAR_SENSOR_SCL    27
+#define PIN_RADAR_SENSOR_SDA    27
+#define PIN_RADAR_SENSOR_SCL    26
 #define PIN_LED_GREEN           14
 #define PIN_LED_RED             15
 #define PIN_OLED_SDA            33
@@ -25,24 +32,22 @@
 #define PIN_WHEELS_DRIVER_IN4   21
 
 // Radar servo sweep limits
-#define RADAR_ANGLE_MIN  30
-#define RADAR_ANGLE_MAX  150
-#define RADAR_SCAN_STEP  5    // degrees between readings
+#define RADAR_ANGLE_MIN  0
+#define RADAR_ANGLE_MAX  180
+#define RADAR_SCAN_STEP  5     // degrees between readings for blocking scan
 #define RADAR_MAX_READINGS ((RADAR_ANGLE_MAX - RADAR_ANGLE_MIN) / RADAR_SCAN_STEP + 1)
+
+// Non-blocking tick scan parameters
+#define RADAR_CONE_DEG      60   // total cone width swept per tick cycle
+#define RADAR_STEP_DEG      10   // degrees between readings in cone
+#define RADAR_SAMPLES        7   // readings per cycle (CONE_DEG / STEP_DEG + 1)
+#define RADAR_OBSTACLE_MM  400   // distance threshold for obstacle detection
 
 typedef struct {
     int     angle;
     int     distance_mm;
 } RadarReading_t;
 
-// LEDC channel assignments (ESP32 has 16 channels, 0-15)
-#define CH_RADAR_SERVO   0
-#define CH_CLAW_SERVO    1
-#define CH_LEVER_SERVO   2
-#define CH_WHEEL_R_IN1   3
-#define CH_WHEEL_R_IN2   4
-#define CH_WHEEL_L_IN3   5
-#define CH_WHEEL_L_IN4   6
 
 
 
@@ -155,10 +160,17 @@ int self_motion_car_proceed(Direction_t direction);
 // Note: in the body of this the function self_motion_stop_motor should be reused.
 int self_motion_car_stop();
 
+#define CLAW_SERVO_MIN_US    500   // pulse width at 0°
+#define CLAW_SERVO_MAX_US   2400   // pulse width at 180°
+#define CLAW_SERVO_STEP_US    53   // ~5° per step
+#define LEVER_SERVO_MIN_US   500   // pulse width at 0°
+#define LEVER_SERVO_MAX_US  2400   // pulse width at 180°
+#define LEVER_SERVO_STEP_US   53   // ~5° per step
+
 #define CLAW_ANGLE_MIN   25   // open position
-#define CLAW_ANGLE_MAX   95   // closed position
-#define LEVER_ANGLE_MIN  10   // raised position
-#define LEVER_ANGLE_MAX  60   // lowered position
+#define CLAW_ANGLE_MAX   90   // closed position
+#define LEVER_ANGLE_MIN  5   // raised position  — tune upward if still oscillating
+#define LEVER_ANGLE_MAX  74  // lowered position — tune downward if not low enough
 
 // Initialize the SSD1306 OLED — call once in setup()
 int self_display_init();
@@ -166,15 +178,21 @@ int self_display_init();
 // Write two lines of text to the OLED
 void self_display_show(const char* line1, const char* line2);
 
-// Initialize the VL53L0X sensor — call once in setup()
+// Initialize radar servo (ESP32Servo) and VL53L0X sensor — call once in setup()
 int self_radar_init();
 
 // Read a single distance measurement in mm. Returns -1 on failure.
 int self_radar_read_distance();
 
-// Sweep the radar servo across RADAR_ANGLE_MIN to RADAR_ANGLE_MAX,
-// taking a reading every RADAR_SCAN_STEP degrees.
-// Fills out_readings[] and returns the number of readings taken, or -1 on error.
+// Non-blocking scan tick — call every loop(). Sweeps a RADAR_CONE_DEG cone
+// around the current servo position in RADAR_SAMPLES steps, then updates
+// self_radar_obstacle_detected().
+void self_radar_tick();
+
+// Returns true if the last completed tick scan found an obstacle within RADAR_OBSTACLE_MM.
+bool self_radar_obstacle_detected();
+
+// Blocking full sweep from RADAR_ANGLE_MIN to RADAR_ANGLE_MAX. For testing only.
 int self_radar_scan(RadarReading_t *out_readings, int max_readings);
 
 #endif

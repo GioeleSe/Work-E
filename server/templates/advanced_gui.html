@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROBOT control</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet"  href="{{ url_for('static', filename='/advanced_gui.css') }}">
+</head>
+
+<body id="body">
+
+    <div class="container container-error d-none" id="container-error">
+        <h1 id="error-type">
+            %error type% Error: <span class="conn-error-text error-description" id="error-description">%error
+                description%</span>
+        </h1>
+        <h4>
+            Verbose Log: <span class="conn-error-text error-log" id="error-log">%verbose log%</span>
+        </h4>
+    </div>
+
+    <div class="container text-center d-none" id="connecting-container">
+        <h1 id="connecting-label">
+            Connecting <span id="connecting-animation"> ... </span>
+        </h1>
+
+    </div>
+
+    <div class="container control-panel px-0 main-container" id="main-container">
+        <div class="row">
+            <div class="panel-header d-flex justify-content-between align-items-center">
+                <span>Manual robot control</span>
+
+                <div class="robot-selector">
+                    <select id="robot-selector" class="form-select form-select-sm" onchange="set_robot(this.value)"
+                        style="width: 140px;">
+                        <option selected value="1">Robot 1</option>
+                        <option value="2">Robot 2</option>
+                        <option value="3">Robot 3</option>
+                        <option value="4">Robot 4</option>
+                        <option value="0">All Robots</option>
+                        <option value="-1">No one</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="carcontrol-container col-md-4 g-0" id="carcontrol-container">
+                <div class="sub-panel ">
+                    <h6 class="mb-4">Directional Control</h6>
+                    <div class="row">
+                        <div class="btn-grid">
+
+                            <button class="nav-btn btn-forward" onmousedown="drive('forward')"
+                                onmouseup="drive('stop')">
+                                <i class="bi bi-caret-up-fill"></i>
+                                <div style="font-size:0.7rem;">Forward</div>
+                            </button>
+
+                            <button class="nav-btn btn-left" onmousedown="drive('left')" onmouseup="drive('stop')">
+                                <i class="bi bi-caret-left-fill"></i>
+                                <div style="font-size:0.7rem;">Left</div>
+                            </button>
+
+                            <button class="stop-btn" onclick="emergency_stop()">
+                                STOP
+                            </button>
+
+                            <button class="nav-btn btn-right" onmousedown="drive('right')" onmouseup="drive('stop')">
+                                <i class="bi bi-caret-right-fill"></i>
+                                <div style="font-size:0.7rem;">Right</div>
+                            </button>
+
+                            <button class="nav-btn btn-reverse" onmousedown="drive('reverse')"
+                                onmouseup="drive('stop')">
+                                <i class="bi bi-caret-down-fill"></i>
+                                <div style="font-size:0.7rem;">Reverse</div>
+                            </button>
+
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="motorcontrol-container col-md-4 g-0" id="motorcontrol-container">
+                <div class="sub-panel ">
+                    <h6 class="mb-4">Advanced Motor Usage</h6>
+
+                    <!-- MOTOR SELECTION -->
+                    <div class="mb-3">
+                        <label class="form-label">Motor ID(s)</label>
+                        <select id="motor_ids" class="form-select form-select-sm" multiple
+                            title="Hold Ctrl / Cmd to select multiple">
+                            <option value="mot1">mot1</option>
+                            <option value="mot2">mot2</option>
+                            <option value="mot3">mot3</option>
+                            <option value="mot4">mot4</option>
+                            <option value="mot5">mot5</option>
+                        </select>
+                    </div>
+
+                    <!-- DIRECTION -->
+                    <div class="mb-3 prop-selection-block">
+                        <label class="form-label">Direction</label>
+                        <select id="motor_direction" class="form-select form-select-sm">
+                            <option value="FORWARD">FORWARD</option>
+                            <option value="BACKWARD">BACKWARD</option>
+                            <option value="LEFT">LEFT</option>
+                            <option value="RIGHT">RIGHT</option>
+                            <option value="STOP" selected>STOP</option>
+                        </select>
+                    </div>
+
+                    <!-- SPEED -->
+                    <div class="mb-3">
+                        <label class="form-label d-flex justify-content-between">
+                            <span>Speed</span>
+                            <span id="speed_value">50</span>
+                        </label>
+                        <input type="range" id="motor_speed" class="form-range" min="0" max="100" step="1" value="50"
+                            oninput="document.getElementById('speed_value').innerText=this.value">
+                    </div>
+
+                    <!-- ANGLE -->
+                    <div class="mb-3">
+                        <label class="form-label">Angle</label>
+                        <input type="number" id="motor_angle" class="form-control form-control-sm" min="-360" max="360"
+                            step="1" placeholder="-360° up to +360°">
+                    </div>
+
+                    <!-- DURATION -->
+                    <div class="mb-4">
+                        <label class="form-label">Duration (ms) – optional</label>
+                        <input type="number" id="motor_duration" class="form-control form-control-sm" min="0"
+                            max="10000" placeholder="Leave empty for continuous">
+                    </div>
+
+                    <!-- EXECUTE BUTTON -->
+                    <button class="btn btn-primary btn-sm btn-exec-motor" onclick="execute_motor_command()">
+                        Execute Motor Command
+                    </button>
+
+                </div>
+            </div>
+
+
+            <div class="propcontrol-container col-md-4 g-0" id="propcontrol-container">
+
+                <div class="sub-panel ">
+                    <h6 class="mb-4">Advanced Configuration</h6>
+
+                    <!-- ENUM PROPERTIES -->
+
+                    <div class="mb-3 prop-selection-block">
+                        <label class="form-label">Speed Mode</label>
+                        <select class="form-select form-select-sm" onchange="set_property('SPEED', this.value)">
+                            <option value="slow">slow</option>
+                            <option value="normal" selected>normal</option>
+                            <option value="fast">fast</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3 prop-selection-block">
+                        <label class="form-label">Feedback Level</label>
+                        <select class="form-select form-select-sm" onchange="set_property('FEEDBACK', this.value)">
+                            <option value="silent">silent</option>
+                            <option value="minimal" selected>minimal</option>
+                            <option value="debug">debug</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3 prop-selection-block">
+                        <label class="form-label">Debug Mode</label>
+                        <select class="form-select form-select-sm" onchange="set_property('DEBUG', this.value)">
+                            <option value="off" selected>off</option>
+                            <option value="basic">basic</option>
+                            <option value="full">full</option>
+                        </select>
+                    </div>
+
+
+                    <div class="mb-3 prop-selection-block">
+                        <label class="form-label">Radar Mode</label>
+                        <select class="form-select form-select-sm" onchange="set_property('RADAR', this.value)">
+                            <option value="off">off</option>
+                            <option value="on" selected>on</option>
+                        </select>
+                    </div>
+
+
+                    <div class="mb-3 prop-selection-block">
+                        <label class="form-label">Screen Mode</label>
+                        <select class="form-select form-select-sm" onchange="set_property('SCREEN', this.value)">
+                            <option value="off">off</option>
+                            <option value="on" selected>on</option>
+                        </select>
+                    </div>
+
+                    <!-- 
+                        <hr style="border-color: #333;">
+
+                        <div class="form-check form-switch mb-2">
+                            <label class="form-check-label">Radar</label>
+                            <input class="form-check-input" type="checkbox"
+                                onchange="set_property('RADAR', this.checked ? 1 : 0)">
+                        </div>
+
+                        <div class="form-check form-switch mb-2">
+                            <label class="form-check-label">Screen</label>
+                            <input class="form-check-input" type="checkbox"
+                                onchange="set_property('SCREEN', this.checked ? 1 : 0)">
+                        </div>
+
+                        <div class="form-check form-switch mb-2">
+                            <label class="form-check-label">Obstacle Cleaner</label>
+                            <input class="form-check-input" type="checkbox"
+                                onchange="set_property('OBSTACLE_CLEANER', this.checked ? 1 : 0)">
+                        </div>
+
+                        <div class="form-check form-switch mb-2">
+                            <label class="form-check-label">Object Loader</label>
+                            <input class="form-check-input" type="checkbox"
+                                onchange="set_property('OBJECT_LOADER', this.checked ? 1 : 0)">
+                        </div>
+
+                        <div class="form-check form-switch mb-3">
+                            <label class="form-check-label">Object Unloader</label>
+                            <input class="form-check-input" type="checkbox"
+                                onchange="set_property('OBJECT_UNLOADER', this.checked ? 1 : 0)">
+                        </div>
+
+                        <div class="form-check form-switch mb-4">
+                            <label class="form-check-label">Object Compacter</label>
+                            <input class="form-check-input" type="checkbox"
+                                onchange="set_property('OBJECT_COMPACTER', this.checked ? 1 : 0)">
+                        </div>
+                    -->
+
+                    <!-- GET PROPERTIES BUTTON -->
+
+                    <button class="btn btn-outline-primary btn-sm btn-get-properties" onclick="get_properties()">
+                        Refresh Properties
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='/advanced_gui.js') }}"   ></script>
+</body>
+
+</html>

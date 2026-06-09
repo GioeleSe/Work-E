@@ -1,7 +1,7 @@
 #ifndef ROBOT_SERVER_H
 #define ROBOT_SERVER_H
 
-#include "ArduinoJson.h"                                            // direclty installed as local self-contained lib
+#include <ArduinoJson.h>
 #include "udp_server.h"
 #include "robot_types.h"
 
@@ -48,5 +48,10 @@ int ResetHandler(ResetPayload_t data);
 
 // Start this server to listen for packets and managing commands
 int RobotStartServer();
+
+// Diagnostic counters (for display without serial)
+int robot_server_get_packet_count();   // packets that entered PacketHandler
+int robot_server_get_fields_ok();      // packets that passed check_fields
+int robot_server_get_cmd_count();      // packets that reached motor_control_handler
 
 #endif

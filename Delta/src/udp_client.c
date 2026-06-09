@@ -72,9 +72,9 @@ int client_main_test() {
     socket_send_message(sockfd, msg, (platform_ssize_t)strlen(msg), (platform_sockaddr_t *)&server_info, &size_of_server_info);
 
     // Receive a message from the same server
-    char buffer[BUFFER_SIZE];
+    char buffer[1024];
     platform_ssize_t recv_bytes = 0;
-    recv_bytes = socket_get_message(sockfd, buffer, BUFFER_SIZE, (platform_sockaddr_t *)&server_info, &size_of_server_info);
+    recv_bytes = socket_get_message(sockfd, buffer, 1024, (platform_sockaddr_t *)&server_info, &size_of_server_info);
     platform_print("client - Received message(%ld): '%s' from server\n", recv_bytes, buffer);
     platform_socket_close(sockfd);
     return 0;

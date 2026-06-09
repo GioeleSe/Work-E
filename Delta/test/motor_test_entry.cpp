@@ -1,9 +1,12 @@
 #include <Arduino.h>
+#include <ESP32Servo.h>
 #include "main_robot.h"
 #include "soc/rtc_cntl_reg.h"
 
 extern SemaphoreHandle_t self_robot_state_sem;
 extern SemaphoreHandle_t self_robot_prop_setter;
+extern Servo clawServo;
+extern Servo leverServo;
 
 void setup() {
     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // disabled for calibration only
@@ -13,9 +16,11 @@ void setup() {
     self_robot_state_sem  = xSemaphoreCreateMutex();
     self_robot_prop_setter = xSemaphoreCreateMutex();
 
-    ledcSetup(CH_RADAR_SERVO, 50,   16); ledcAttachPin(PIN_RADAR_SERVO,        CH_RADAR_SERVO);
-    ledcSetup(CH_CLAW_SERVO,  50,   16); ledcAttachPin(PIN_CLAW_SERVO,         CH_CLAW_SERVO);
-    ledcSetup(CH_LEVER_SERVO, 50,   16); ledcAttachPin(PIN_LEVER_SERVO,        CH_LEVER_SERVO);
+    ESP32PWM::allocateTimer(0); // claw  → timer 0 ch 0 (50 Hz)
+    ESP32PWM::allocateTimer(0); // lever → timer 0 ch 1 (50 Hz, same timer independent duty)
+    ESP32PWM::allocateTimer(3); // radar → timer 3 ch 6 (50 Hz); wheels stay on timers 1–2
+    clawServo.setPeriodHertz(50);  clawServo.attach(PIN_CLAW_SERVO, CLAW_SERVO_MIN_US, CLAW_SERVO_MAX_US);
+    leverServo.setPeriodHertz(50); leverServo.attach(PIN_LEVER_SERVO, LEVER_SERVO_MIN_US, LEVER_SERVO_MAX_US);
     ledcSetup(CH_WHEEL_R_IN1, 1000,  8); ledcAttachPin(PIN_WHEELS_DRIVER_IN1, CH_WHEEL_R_IN1);
     ledcSetup(CH_WHEEL_R_IN2, 1000,  8); ledcAttachPin(PIN_WHEELS_DRIVER_IN2, CH_WHEEL_R_IN2);
     ledcSetup(CH_WHEEL_L_IN3, 1000,  8); ledcAttachPin(PIN_WHEELS_DRIVER_IN3, CH_WHEEL_L_IN3);
@@ -23,6 +28,10 @@ void setup() {
 
     pinMode(PIN_WHEELS_DRIVER_SLEEP, OUTPUT);
     digitalWrite(PIN_WHEELS_DRIVER_SLEEP, HIGH);
+
+    clawServo.writeMicroseconds(CLAW_SERVO_MIN_US + (int)((long)CLAW_ANGLE_MAX  * (CLAW_SERVO_MAX_US  - CLAW_SERVO_MIN_US)  / 180));
+    leverServo.writeMicroseconds(LEVER_SERVO_MIN_US + (int)((long)LEVER_ANGLE_MIN * (LEVER_SERVO_MAX_US - LEVER_SERVO_MIN_US) / 180));
+    delay(600);
 
     if (self_display_init() == 0) {
         self_display_show("TEST MODE", "");
@@ -38,27 +47,31 @@ void setup() {
 
     Serial.println("Commands:");
     Serial.println("  f : forward         b : backward      x : stop wheels");
+    Serial.println("  z : turn left       v : turn right");
     Serial.println("  q : right forward   a : right backward");
     Serial.println("  e : left forward    d : left backward");
     Serial.println("  u : claw open       i : claw close");
-    Serial.println("  n : lever up        m : lever down");
+    Serial.println("  n : lever up (step) m : lever down (step)");
     Serial.println("  c : claw sweep      l : lever sweep");
     Serial.println("  r : radar scan      p : radar single read");
     Serial.println("  j : radar left      k : radar right     o : radar center");
 }
 
-void sweep(uint8_t channel, int from, int to, int step_ms) {
+void sweep(Servo& srv, int from, int to, int step_ms) {
     int step = (to > from) ? 1 : -1;
     for (int a = from; a != to + step; a += step) {
-        ledcWrite(channel, angle_to_duty(a));
+        srv.write(a);
         Serial.print("angle: "); Serial.println(a);
         delay(step_ms);
     }
-    ledcWrite(channel, 0);
 }
 
 void loop() {
     static int radar_angle = (RADAR_ANGLE_MIN + RADAR_ANGLE_MAX) / 2;
+    static int lever_angle = LEVER_ANGLE_MIN;
+    static int claw_angle  = CLAW_ANGLE_MAX;
+    static const int LEVER_STEP = 5;
+    static const int CLAW_STEP  = 5;
 
     if (!Serial.available()) { delay(50); return; }
 
@@ -79,6 +92,16 @@ void loop() {
             ledcWrite(CH_WHEEL_R_IN1, 0); ledcWrite(CH_WHEEL_R_IN2, 0);
             ledcWrite(CH_WHEEL_L_IN3, 0); ledcWrite(CH_WHEEL_L_IN4, 0);
             break;
+        case 'z':
+            Serial.println("Wheels: turn left");
+            ledcWrite(CH_WHEEL_R_IN1, 180); ledcWrite(CH_WHEEL_R_IN2, 0);
+            ledcWrite(CH_WHEEL_L_IN3, 180); ledcWrite(CH_WHEEL_L_IN4, 0);
+            break;
+        case 'v':
+            Serial.println("Wheels: turn right");
+            ledcWrite(CH_WHEEL_R_IN1, 0); ledcWrite(CH_WHEEL_R_IN2, 180);
+            ledcWrite(CH_WHEEL_L_IN3, 0); ledcWrite(CH_WHEEL_L_IN4, 180);
+            break;
         case 'q':
             Serial.println("Right wheel: forward");
             ledcWrite(CH_WHEEL_R_IN1, 180); ledcWrite(CH_WHEEL_R_IN2, 0);
@@ -96,34 +119,38 @@ void loop() {
             ledcWrite(CH_WHEEL_L_IN3, 180); ledcWrite(CH_WHEEL_L_IN4, 0);
             break;
         case 'u':
-            Serial.println("Claw: open");
-            self_motion_open_claw(CLAW_ANGLE_MIN);
+            claw_angle = max(claw_angle - CLAW_STEP, CLAW_ANGLE_MIN);
+            self_motion_open_claw(claw_angle);
+            Serial.print("Claw: angle="); Serial.println(claw_angle);
             break;
         case 'i':
-            Serial.println("Claw: close");
-            self_motion_open_claw(CLAW_ANGLE_MAX);
+            claw_angle = min(claw_angle + CLAW_STEP, CLAW_ANGLE_MAX);
+            self_motion_open_claw(claw_angle);
+            Serial.print("Claw: angle="); Serial.println(claw_angle);
             break;
         case 'n':
-            Serial.println("Lever: up");
-            self_motion_move_lever(LEVER_ANGLE_MIN);
+            lever_angle = max(lever_angle - LEVER_STEP, LEVER_ANGLE_MIN);
+            self_motion_move_lever(lever_angle);
+            Serial.print("Lever: angle="); Serial.println(lever_angle);
             break;
         case 'm':
-            Serial.println("Lever: down");
-            self_motion_move_lever(LEVER_ANGLE_MAX);
+            lever_angle = min(lever_angle + LEVER_STEP, LEVER_ANGLE_MAX);
+            self_motion_move_lever(lever_angle);
+            Serial.print("Lever: angle="); Serial.println(lever_angle);
             break;
         case 'c':
             Serial.println("--- Claw: MIN to MAX ---");
-            sweep(CH_CLAW_SERVO, CLAW_ANGLE_MIN, CLAW_ANGLE_MAX, 30);
+            sweep(clawServo, CLAW_ANGLE_MIN, CLAW_ANGLE_MAX, 30);
             delay(500);
             Serial.println("--- Claw: MAX to MIN ---");
-            sweep(CH_CLAW_SERVO, CLAW_ANGLE_MAX, CLAW_ANGLE_MIN, 30);
+            sweep(clawServo, CLAW_ANGLE_MAX, CLAW_ANGLE_MIN, 30);
             break;
         case 'l':
             Serial.println("--- Lever: MIN to MAX ---");
-            sweep(CH_LEVER_SERVO, LEVER_ANGLE_MIN, LEVER_ANGLE_MAX, 30);
+            sweep(leverServo, LEVER_ANGLE_MIN, LEVER_ANGLE_MAX, 30);
             delay(500);
             Serial.println("--- Lever: MAX to MIN ---");
-            sweep(CH_LEVER_SERVO, LEVER_ANGLE_MAX, LEVER_ANGLE_MIN, 30);
+            sweep(leverServo, LEVER_ANGLE_MAX, LEVER_ANGLE_MIN, 30);
             break;
         case 'r': {
             Serial.println("--- Radar: full scan ---");
@@ -148,17 +175,17 @@ void loop() {
         }
         case 'j':
             radar_angle = max(radar_angle - RADAR_SCAN_STEP, RADAR_ANGLE_MIN);
-            ledcWrite(CH_RADAR_SERVO, angle_to_duty(radar_angle));
+            self_motion_steer_servo(Motors_MOT3, radar_angle);
             Serial.print("Radar: angle="); Serial.println(radar_angle);
             break;
         case 'k':
             radar_angle = min(radar_angle + RADAR_SCAN_STEP, RADAR_ANGLE_MAX);
-            ledcWrite(CH_RADAR_SERVO, angle_to_duty(radar_angle));
+            self_motion_steer_servo(Motors_MOT3, radar_angle);
             Serial.print("Radar: angle="); Serial.println(radar_angle);
             break;
         case 'o':
             radar_angle = (RADAR_ANGLE_MIN + RADAR_ANGLE_MAX) / 2;
-            ledcWrite(CH_RADAR_SERVO, angle_to_duty(radar_angle));
+            self_motion_steer_servo(Motors_MOT3, radar_angle);
             Serial.print("Radar: angle="); Serial.println(radar_angle);
             break;
         default:

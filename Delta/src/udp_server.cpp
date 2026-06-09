@@ -1,6 +1,8 @@
 #include "udp_server.h"
 
 udp_server_data_t udp_server_data;                                  // global server data
+static volatile int udp_rx_count = 0;
+int server_get_rx_count() { return udp_rx_count; }
 
 platform_socket_fd_t server_socket_init(){
     platform_socket_fd_t sockfd;
@@ -92,8 +94,8 @@ udp_server_data_t* server_init(){
     server_socket_bind(udp_server_data.socket_fd, (platform_sockaddr_in_t*)&udp_server_data.server_info, &udp_server_data.size_of_server_info);
 
     platform_sem_init(&udp_server_data.udp_server_buffer.buffer_messages_mutex, 0, 1);
-    platform_sem_init(&udp_server_data.udp_server_buffer.buffer_messages_counting_sem, 0, 255);
-    udp_server_data.udp_server_buffer.buffer_max_size = BUFFER_SIZE;
+    platform_sem_init(&udp_server_data.udp_server_buffer.buffer_messages_counting_sem, 0, BUFFER_MAX_MESSAGES);
+    udp_server_data.udp_server_buffer.buffer_max_size = BUFFER_MAX_MESSAGES;
     udp_server_data.udp_server_buffer.buffer_max_line_size = BUFFER_SIZE;
     return &udp_server_data;
 }
@@ -166,12 +168,17 @@ void server_listen_port(){
 
         while((!buffer_is_full) && (!udp_server_data.stop_server)){        // get new messages up to max capacity (no message priority)
             recv_bytes = server_socket_wait_packets(udp_server_data.socket_fd, single_message_buffer, BUFFER_SIZE, (platform_sockaddr_t* )&udp_server_data.client_info, &udp_server_data.size_of_client_info);
-            if(recv_bytes>0){
+            if(recv_bytes > 0){
+                udp_rx_count++;
+                platform_print("server - recv %d bytes: '%s'\n", (int)recv_bytes, single_message_buffer);
                 int push_ret = server_buffer_push(single_message_buffer, recv_bytes);
                 if (push_ret == -1){
                     platform_print("Server buffer is full. New messages will not be received! \n");
                 }
-            }else{
+            } else if(recv_bytes < 0){
+                platform_print("server - recvfrom error: %d\n", (int)recv_bytes);
+                platform_sleep_ms(100);
+            } else {
                 continue;
             }
         }

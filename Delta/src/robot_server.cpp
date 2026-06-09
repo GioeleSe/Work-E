@@ -5,6 +5,13 @@
 
 #define ROBOT_NET_PROTOCOL "robot-net/1.0"
 
+static volatile int _packet_count = 0;
+static volatile int _fields_ok    = 0;
+static volatile int _cmd_count    = 0;
+int robot_server_get_packet_count() { return _packet_count; }
+int robot_server_get_fields_ok()    { return _fields_ok; }
+int robot_server_get_cmd_count()    { return _cmd_count; }
+
 // -------------------------------- main code --------------------------------
 
 void* message_server_thread(void* arg){
@@ -84,16 +91,16 @@ int RobotStartServer(){
 // ------- robot_server packet handlers implementation here -------
 struct FieldDef {                                                   // fields parser structures (runtime type check)
     const char* name;
-    std::function<bool(const JsonVariant&)> check;
+    std::function<bool(JsonVariantConst)> check;
 };
 const FieldDef expected_fields[] = {
-    {"protocol",     [](const JsonVariant& v){ return v.is<const char*>(); }},
-    {"robot_id",     [](const JsonVariant& v){ return v.is<int>(); }},
-    {"message_type", [](const JsonVariant& v){ return v.is<int>(); }},
-    {"request_id",   [](const JsonVariant& v){ return v.is<int>(); }},
-    {"mode",         [](const JsonVariant& v){ return v.is<int>(); }},
-    {"payload",      [](const JsonVariant& v){ return v.is<JsonObject>(); }},
-    {"timestamp",    [](const JsonVariant& v){ return v.is<long>(); }}
+    {"protocol",     [](JsonVariantConst v){ return v.is<const char*>(); }},
+    {"robot_id",     [](JsonVariantConst v){ return v.is<int>(); }},
+    {"message_type", [](JsonVariantConst v){ return v.is<int>(); }},
+    {"request_id",   [](JsonVariantConst v){ return v.is<int>(); }},
+    {"mode",         [](JsonVariantConst v){ return v.is<int>(); }},
+    {"payload",      [](JsonVariantConst v){ return v.is<JsonObjectConst>(); }},
+    {"timestamp",    [](JsonVariantConst v){ return v.is<long>(); }}
 };
 
 // check for common non-null needed (header) fields:
@@ -102,7 +109,7 @@ const FieldDef expected_fields[] = {
 // obv return -1 for errors
 int check_fields(const JsonDocument& json_doc){
     for (auto const& field_data : expected_fields){
-        JsonVariant field_val = json_doc[field_data.name];
+        JsonVariantConst field_val = json_doc[field_data.name];
         if(field_val.isNull()){
             platform_print("missing field %s in json packet\n", field_data.name);
             return -1;
@@ -118,14 +125,14 @@ int check_fields(const JsonDocument& json_doc){
 
 // check for command-type message (== assert "message_type" = 0)
 // and payload command field existence and value
-int check_command(const JsonObject& json_payload){
-    JsonVariant payload_command = json_payload["command"];
+int check_command(JsonObjectConst json_payload){
+    JsonVariantConst payload_command = json_payload["command"];
     if((payload_command.isNull()) || !(payload_command.is<int>())){
         platform_print("invalid command field inside payload (expected non-null integer)\n");
         return -1;
     }
     int command_val = payload_command.as<int>();
-    return (command_val < 0)?-1:command_val;                        // any negative values are set to -1 (used here as generic error value)
+    return (command_val < 0)?-1:command_val;
 }
 
 // set common headers of the message envelope.
@@ -134,7 +141,7 @@ int check_command(const JsonObject& json_payload){
 //  - message_type is *not* set here 
 //  - the timestamp is set here
 //  - the uuid is random, overwrite it to match the command uuid
-void set_message_common_headers(const JsonObject& reply_doc){
+void set_message_common_headers(JsonDocument& reply_doc){
     reply_doc["protocol"] = ROBOT_NET_PROTOCOL;
     reply_doc["robot_id"] = self_prop_get_robot_id();
     reply_doc["request_uuid"] = (uint16_t)(rand()%65535);
@@ -143,8 +150,8 @@ void set_message_common_headers(const JsonObject& reply_doc){
 }
 
 // parse the payload to the specific get_config expected structure
-int get_get_config_payload( const JsonObject& json_payload, GetConfigPayload_t* get_config_payload){
-    JsonVariant prop_name = json_payload["prop"];
+int get_get_config_payload(JsonObjectConst json_payload, GetConfigPayload_t* get_config_payload){
+    JsonVariantConst prop_name = json_payload["prop"];
     if((prop_name.isNull()) || !(prop_name.is<int>())){
         platform_print("invalid property field inside payload (expected non-null integer)\n");
         return -1;
@@ -161,9 +168,9 @@ int get_get_config_payload( const JsonObject& json_payload, GetConfigPayload_t* 
 // parse the payload to the specific set_config expected structure
 // NOTE: the expected new value is int type!
 // return -1 for null or invalid type fields
-int get_set_config_payload( const JsonObject& json_payload, SetConfigPayload_t* set_config_payload){
-    JsonVariant prop_name = json_payload["prop"];
-    JsonVariant prop_value = json_payload["new_value"];
+int get_set_config_payload(JsonObjectConst json_payload, SetConfigPayload_t* set_config_payload){
+    JsonVariantConst prop_name = json_payload["prop"];
+    JsonVariantConst prop_value = json_payload["new_value"];
     if((prop_name.isNull()) || !(prop_name.is<int>())){
         platform_print("invalid property field inside payload (expected non-null integer)\n");
         return -1;
@@ -185,8 +192,8 @@ int get_set_config_payload( const JsonObject& json_payload, SetConfigPayload_t* 
 
 // parse the payload to the specific reset expected structure
 // return -1 for null or invalid type field
-int get_reset_payload(const JsonObject& json_payload, ResetPayload_t* reset_payload){
-    JsonVariant reset_keyword = json_payload["reset"];
+int get_reset_payload(JsonObjectConst json_payload, ResetPayload_t* reset_payload){
+    JsonVariantConst reset_keyword = json_payload["reset"];
     if((reset_keyword.isNull()) || !(reset_keyword.is<const char*>())){
         platform_print("invalid reset field inside payload (expected non-null string)\n");
         return -1;
@@ -199,8 +206,8 @@ int get_reset_payload(const JsonObject& json_payload, ResetPayload_t* reset_payl
 
 // parse the payload to the specific emergency_stop expected structure
 // return -1 for null or invalid type field
-int get_emergency_stop_payload(const JsonObject& json_payload, EmergencyStopPayload_t* emergency_stop_payload) {
-    JsonVariant emergency_stop_keyword = json_payload["stop"];
+int get_emergency_stop_payload(JsonObjectConst json_payload, EmergencyStopPayload_t* emergency_stop_payload) {
+    JsonVariantConst emergency_stop_keyword = json_payload["stop"];
     if((emergency_stop_keyword.isNull()) || !(emergency_stop_keyword.is<const char*>())){
         platform_print("invalid emergency_stop field inside payload (expected non-null string)\n");
         return -1;
@@ -213,38 +220,26 @@ int get_emergency_stop_payload(const JsonObject& json_payload, EmergencyStopPayl
 
 // parse the payload to the specific motor_control expected structure
 // return -1 for null or invalid type fields
-int get_motor_control_payload(const JsonObject& json_payload, MotorControlPayload_t* motor_control_payload){
-    /*
-        "payload": {
-            "command": 2,
-            "motor_id": [
-                -1                          // no explicit motor to drive (-1 is end_mot) -> drive as a car!
-            ],
-            "direction": 0,
-            "speed": 100,
-            "angle": 0,
-            "duration_ms": 0
-        }
-    */
-    JsonVariant motor_id_list = json_payload["motor_id"];           // -1 as terminal value, list of indexes of enum Motors_t
-    JsonVariant direction = json_payload["direction"];              // index of enum Direction_t
-    JsonVariant speed = json_payload["speed"];
-    JsonVariant angle = json_payload["angle"];
-    JsonVariant duration_ms = json_payload["duration_ms"];          // 0 as continuous movement
-    
+int get_motor_control_payload(JsonObjectConst json_payload, MotorControlPayload_t* motor_control_payload){
+    JsonVariantConst motor_id_list = json_payload["motor_id"];
+    JsonVariantConst direction = json_payload["direction"];
+    JsonVariantConst speed = json_payload["speed"];
+    JsonVariantConst angle = json_payload["angle"];
+    JsonVariantConst duration_ms = json_payload["duration_ms"];
+
     // check existence and type
-    JsonVariant int_fields_list[] = {direction, speed, angle, duration_ms}; // motor_id_list is array of int
-    for(JsonVariant field : int_fields_list){
+    JsonVariantConst int_fields_list[] = {direction, speed, angle, duration_ms};
+    for(JsonVariantConst field : int_fields_list){
         if((field.isNull()) || (!field.is<int>())){
             platform_print("invalid motor_control field inside payload (expected non-null int)\n");
-            return -1; 
+            return -1;
         }
     }
-    if((motor_id_list.isNull()) || !(motor_id_list.is<JsonArray>())){
+    if((motor_id_list.isNull()) || !(motor_id_list.is<JsonArrayConst>())){
         platform_print("invalid motor_control field inside payload (expected non-null int array)\n");
-        return -1; 
+        return -1;
     }
-    for (JsonVariant motor_id : motor_id_list.as<JsonArray>()) {
+    for (JsonVariantConst motor_id : motor_id_list.as<JsonArrayConst>()) {
         if (!motor_id.is<int>()) {
             platform_print("invalid motor_control field inside payload (expected array of int)\n");
             return -1;
@@ -252,7 +247,7 @@ int get_motor_control_payload(const JsonObject& json_payload, MotorControlPayloa
     }
 
     // payload struct building
-    JsonArray motor_id_list_array = motor_id_list.as<JsonArray>();
+    JsonArrayConst motor_id_list_array = motor_id_list.as<JsonArrayConst>();
     int array_size = motor_id_list_array.size();
     array_size = (array_size < MAX_MOTORS_COUNT)?array_size:MAX_MOTORS_COUNT; // max size clip (some kind of basic protection)
 
@@ -268,15 +263,15 @@ int get_motor_control_payload(const JsonObject& json_payload, MotorControlPayloa
 
 // parse the payload to the specific move command expected structure
 // return -1 for null or invalid type fields
-int get_move_payload(const JsonObject& json_payload, MovePayload_t* move_payload){
-    JsonVariant destination_x = json_payload["destination_x"];
-    JsonVariant destination_y = json_payload["destination_y"];
-    JsonVariant destination_checkpoint = json_payload["destination_checkpoint"];
-    JsonVariant navigation_type = json_payload["navigation_type"];
-    JsonVariant route_policy = json_payload["route_policy"];
-    
-    JsonVariant int_fields_list[] = {destination_x, destination_y, destination_checkpoint, navigation_type, route_policy};
-    for(JsonVariant field : int_fields_list){
+int get_move_payload(JsonObjectConst json_payload, MovePayload_t* move_payload){
+    JsonVariantConst destination_x = json_payload["destination_x"];
+    JsonVariantConst destination_y = json_payload["destination_y"];
+    JsonVariantConst destination_checkpoint = json_payload["destination_checkpoint"];
+    JsonVariantConst navigation_type = json_payload["navigation_type"];
+    JsonVariantConst route_policy = json_payload["route_policy"];
+
+    JsonVariantConst int_fields_list[] = {destination_x, destination_y, destination_checkpoint, navigation_type, route_policy};
+    for(JsonVariantConst field : int_fields_list){
         if((field.isNull()) || (!field.is<int>())){
             platform_print("invalid move field inside payload (expected non-null int)\n");
             return -1; 
@@ -284,9 +279,9 @@ int get_move_payload(const JsonObject& json_payload, MovePayload_t* move_payload
     }
     move_payload->destination_x = destination_x.as<int>();
     move_payload->destination_y = destination_y.as<int>();
-    move_payload->destination_checkpoint = destination_checkpoint.as<int>();
-    move_payload->navigation_type = navigation_type.as<int>();
-    move_payload->route_policy = route_policy.as<int>();
+    move_payload->destination_checkpoint = (DestinationCheckpoint_t)destination_checkpoint.as<int>();
+    move_payload->navigation_type = (NavigationType_t)navigation_type.as<int>();
+    move_payload->route_policy = (RoutePolicy_t)route_policy.as<int>();
     return 0;
 }
 
@@ -295,7 +290,7 @@ int get_move_payload(const JsonObject& json_payload, MovePayload_t* move_payload
 // send it back as response packet
 // return -1 if the prop is unrecognized
 int get_config_handler(uint16_t command_uuid, GetConfigPayload_t* get_config_payload){
-    JsonObject reply_packet;
+    JsonDocument reply_packet;
     set_message_common_headers(reply_packet);
     reply_packet["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
     reply_packet["request_uuid"] = command_uuid;                    // use the same as the command/request so that the server can track the source event for this reply
@@ -353,7 +348,7 @@ int get_config_handler(uint16_t command_uuid, GetConfigPayload_t* get_config_pay
 // call the set function for the correct property to change. The new value is assigned using main_robot functions 
 // (any error is consumed with failure feedback)
 int set_config_handler(uint16_t command_uuid, SetConfigPayload_t* set_config_payload){
-    JsonObject reply_packet;
+    JsonDocument reply_packet;
     set_message_common_headers(reply_packet);
     reply_packet["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
     reply_packet["request_uuid"] = command_uuid;                    // use the same as the command/request so that the server can track the source event for this reply
@@ -410,7 +405,7 @@ int set_config_handler(uint16_t command_uuid, SetConfigPayload_t* set_config_pay
 // checking the current robot state and calling soft or hard reset function
 // (any error is consumed with failure feedback)
 int reset_handler(uint16_t command_uuid, ResetPayload_t* reset_payload){
-    JsonObject reply_packet;
+    JsonDocument reply_packet;
     set_message_common_headers(reply_packet);
     reply_packet["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
     reply_packet["request_uuid"] = command_uuid;
@@ -448,7 +443,7 @@ int reset_handler(uint16_t command_uuid, ResetPayload_t* reset_payload){
 }
 
 int emergency_stop_handler(uint16_t command_uuid, EmergencyStopPayload_t* emergency_stop_payload){
-    JsonObject reply_packet;
+    JsonDocument reply_packet;
     set_message_common_headers(reply_packet);
     reply_packet["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
     reply_packet["request_uuid"] = command_uuid;
@@ -463,11 +458,12 @@ int emergency_stop_handler(uint16_t command_uuid, EmergencyStopPayload_t* emerge
     return 0;
 }
 
-// Perform de-multipling from motor_control functionality of the UI server to the almost high level functions like // Perform de-multipling from motor_control functionality of the UI server to the almost high level functions like moveself_motion_car_proceed
+// Perform de-multipling from motor_control functionality of the UI server to the almost high level functions like moveself_motion_car_proceed
 // From this function the robot will send back error, pending or success feedback according to the command shape.
 // Note: for now no check on the actual activation functions is implemented (even if they're defined as int functions)
 int motor_control_handler(uint16_t command_uuid, MotorControlPayload_t* motor_control_payload){
-    JsonObject reply_packet;
+    _cmd_count++;
+    JsonDocument reply_packet;
     set_message_common_headers(reply_packet);
     reply_packet["request_uuid"] = command_uuid;
     reply_packet["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
@@ -583,6 +579,7 @@ int move_handler(uint16_t command_uuid, MovePayload_t* move_payload){
 // According to the incoming command the proper handler is called (with the parsed specific payload)
 // Note: handler errors are ignored for now
 int PacketHandler(char* packet, ssize_t packet_size){
+    _packet_count++;
     if (packet == nullptr || packet_size <= 0) {
         platform_print("PacketHandler: invalid packet pointer\n");
         return -1;
@@ -597,13 +594,14 @@ int PacketHandler(char* packet, ssize_t packet_size){
     if(check_fields(json_doc)<0){
         return -1;
     }
+    _fields_ok++;
     
-    char* protocol = json_doc["protocol"].as<char*>();
+    const char* protocol = json_doc["protocol"].as<const char*>();
     int robot_id = json_doc["robot_id"].as<int>();
     int message_type = json_doc["message_type"].as<int>();
     int request_id = json_doc["request_id"].as<int>();
     int mode = json_doc["mode"].as<int>();
-    JsonObject payload = json_doc["payload"].as<JsonObject>();
+    JsonObjectConst payload = json_doc["payload"].as<JsonObjectConst>();
     long timestamp = json_doc["timestamp"].as<long>();
     
     if(message_type != 0){

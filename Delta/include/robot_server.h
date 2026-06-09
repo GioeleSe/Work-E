@@ -54,4 +54,11 @@ int robot_server_get_packet_count();   // packets that entered PacketHandler
 int robot_server_get_fields_ok();      // packets that passed check_fields
 int robot_server_get_cmd_count();      // packets that reached motor_control_handler
 
+// Send a single radar reading as a feedback event to the server
+void robot_server_send_radar_event(int angle, int distance_mm);
+// Send the minimum distance observed across a completed half-sweep
+void robot_server_send_radar_min(int min_distance_mm);
+// Send a one-shot notification that the robot has connected to the network
+void robot_server_send_connected();
+
 #endif

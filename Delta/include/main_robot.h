@@ -5,7 +5,7 @@
 // communication baud for serial speed matching
 #define SERIAL_BAUD 115200
 // ID assigned in docs, ranging from 1 to 4
-#define SELF_ROBOT_ID 1
+#define SELF_ROBOT_ID 2
 
 // LEDC channel assignments for DC wheel motors (timers 1 and 2, 1000 Hz)
 // Servos are driven by ESP32Servo on timers 0 and 3 — no overlap.

@@ -12,6 +12,46 @@ int robot_server_get_packet_count() { return _packet_count; }
 int robot_server_get_fields_ok()    { return _fields_ok; }
 int robot_server_get_cmd_count()    { return _cmd_count; }
 
+static void set_message_common_headers(JsonDocument& reply_doc);  // defined below
+
+void robot_server_send_radar_event(int angle, int distance_mm) {
+    JsonDocument doc;
+    set_message_common_headers(doc);
+    doc["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
+    doc["payload"]["event"]       = "radar_scan";
+    doc["payload"]["angle"]       = angle;
+    doc["payload"]["distance_mm"] = distance_mm;
+    char buf[BUFFER_SIZE];
+    ssize_t n = serializeJson(doc, buf);
+    client_send_packet(buf, n);
+}
+
+void robot_server_send_radar_min(int min_distance_mm) {
+    JsonDocument doc;
+    set_message_common_headers(doc);
+    doc["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
+    doc["payload"]["event"]           = "radar_scan_min";
+    doc["payload"]["min_distance_mm"] = min_distance_mm;
+    char buf[BUFFER_SIZE];
+    ssize_t n = serializeJson(doc, buf);
+    client_send_packet(buf, n);
+}
+
+void robot_server_send_connected() {
+    JsonDocument doc;
+    doc["protocol"]     = "robot-net/1.0";
+    doc["robot_id"]     = self_prop_get_robot_id();
+    doc["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
+    doc["request_id"]   = 0;
+    doc["mode"]         = (int)MessageMode_t::MessageMode_MANUAL;
+    doc["timestamp"]    = (long)time(NULL);
+    doc["payload"]["event"] = "online";
+    char buf[256];
+    ssize_t len = serializeJson(doc, buf);
+    client_send_packet(buf, len);
+    Serial.println("Online notification sent.");
+}
+
 // -------------------------------- main code --------------------------------
 
 void* message_server_thread(void* arg){

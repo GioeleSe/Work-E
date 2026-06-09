@@ -9,6 +9,8 @@ import threading
 import logging
 from datetime import timezone
 from enum import Enum
+from mailbox import Message
+
 from pydantic import UUID4
 from server_http import Direction, DestinationRobot, ConfigProperty
 
@@ -30,12 +32,13 @@ class CommandType(Enum):
 
 
 class MessageType(Enum):
-    COMMAND = 0
-    FEEDBACK = 1
-    EVENT = 2
-    ERROR = 3
-    HEARTBEAT = 4
-    RESET = 5
+    COMMAND   = 0
+    HEARTBEAT = 1
+    EVENT     = 2
+    PROPERTY  = 3
+    FEEDBACK  = 4
+    DEBUG     = 5
+    ERROR     = 6
 
 
 class DestinationCheckpoint(Enum):
@@ -107,8 +110,8 @@ class UDPMessage:
                  request_uuid: UUID4 = None, mode: MessageMode = MessageMode.MANUAL, payload=None):
         request_uuid = uuid.uuid4().bytes[0:1] if not request_uuid else request_uuid.bytes[0:1]
 
-        self.protocol = protocol
         self.robot_id = robot_id
+        self.protocol = protocol
         self.message_type = message_type
         self.request_id = request_uuid
         self.mode = mode
@@ -117,8 +120,8 @@ class UDPMessage:
 
     def to_dict(self) -> dict:
         return {
+            "robot_id":self.robot_id,
             "protocol": self.protocol,
-            "robot_id": self.robot_id,
             "message_type": _serialize_value(self.message_type),
             "request_id": int.from_bytes(self.request_id, 'big'),
             "mode": _serialize_value(self.mode),
@@ -130,24 +133,27 @@ class UDPMessage:
         return json.dumps(self.to_dict(), separators=(",", ":"))
 
     @staticmethod
-    def reset_board(request_uuid: UUID4 = None):
+    def reset_board(destination:DestinationRobot=DestinationRobot.ROBOT1, request_uuid: UUID4 = None):
         return UDPMessage(
+            robot_id=destination.value,
             request_uuid=request_uuid,
             payload={"command": CommandType.RESET, "reset": "reset"},
         )
 
     @staticmethod
-    def emergency_stop(request_uuid: UUID4 = None):
+    def emergency_stop(destination:DestinationRobot=DestinationRobot.ROBOT1, request_uuid: UUID4 = None):
         return UDPMessage(
+            robot_id=destination.value,
             request_uuid=request_uuid,
             payload={"command": CommandType.EMERGENCY_STOP, "stop": "stop"},
         )
 
     @staticmethod
-    def set_property(request_uuid: UUID4 = None, prop: ConfigProperty = None, new_value=None):
+    def set_property(destination:DestinationRobot=DestinationRobot.ROBOT1, request_uuid: UUID4 = None, prop: ConfigProperty = None, new_value=None):
         if prop is None or new_value is None:
             raise ValueError
-        message = UDPMessage(request_uuid=request_uuid)
+        logger.debug(f"setting property to robot {destination}")
+        message = UDPMessage(robot_id=destination.value,request_uuid=request_uuid)
         message.payload = {
             "command": CommandType.SET_PROPERTY,
             "prop": prop,
@@ -156,8 +162,9 @@ class UDPMessage:
         return message
 
     @staticmethod
-    def get_property(request_uuid: UUID4 = None, prop: ConfigProperty = None):
+    def get_property(destination:DestinationRobot=DestinationRobot.ROBOT1, request_uuid: UUID4 = None, prop: ConfigProperty = None):
         return UDPMessage(
+            robot_id=destination.value,
             request_uuid=request_uuid,
             payload={
                 "command": CommandType.GET_PROPERTY,
@@ -168,7 +175,7 @@ class UDPMessage:
     # continuous control = duration_ms set to 0
     # motor_id can be a list of multiple motors to drive
     @staticmethod
-    def motor_control(request_uuid: UUID4 = None, motor_list: list = None, direction: Direction = Direction.STOP,
+    def motor_control(destination:DestinationRobot=DestinationRobot.ROBOT1, request_uuid: UUID4 = None, motor_list: list = None, direction: Direction = Direction.STOP,
                       angle: int = 0, speed: int = 100, duration_ms: int = 0):
         if direction is None:
             raise ValueError
@@ -177,7 +184,7 @@ class UDPMessage:
         else:
             motor_list.append(Motors.END_MOT)
 
-        message = UDPMessage(request_uuid=request_uuid)
+        message = UDPMessage(robot_id=destination.value,request_uuid=request_uuid)
         message.payload = {
             "command": CommandType.MOTOR_CONTROL,
             "motor_id": motor_list,
@@ -189,9 +196,9 @@ class UDPMessage:
         return message
 
     @staticmethod
-    def move(request_uuid: UUID4 = None, move_destination=None, navigation_type: NavigationType = NavigationType.MANUAL,
+    def move(destination:DestinationRobot=DestinationRobot.ROBOT1, request_uuid: UUID4 = None, move_destination=None, navigation_type: NavigationType = NavigationType.MANUAL,
              route_policy: RoutePolicy = RoutePolicy.SHORTEST):
-        message = UDPMessage(request_uuid=request_uuid)
+        message = UDPMessage(robot_id=destination.value,request_uuid=request_uuid)
         message.payload = {
             "command": CommandType.MOVE,
             "destination_x": move_destination.x,
@@ -240,27 +247,22 @@ class UDPServer:
 
         self.robot_prop_table = {
             1: {
-                "name": "Beta",
-                "motor_speed": 100,
-            },
-            2: {
                 "name": "Charlie",
                 "motor_speed": 100,
             },
-            3: {
+            2: {
                 "name": "Delta",
                 "motor_speed": 100,
             },
-            4: {
-                "name": "Mario",
+            3: {
+                "name": "Beta",
                 "motor_speed": 100,
             },
         }
         self.robot_ip_table = {
-            1: '192.168.137.100',
-            2: '192.168.137.222',
-            3: '192.168.137.102',
-            4: '192.168.137.103',
+            1: '192.168.137.101',
+            2: '192.168.137.102',
+            3: '192.168.137.103',
         }
         self.robot_last_seen_table = {}
 
@@ -311,21 +313,14 @@ class UDPServer:
                 raw, addr = self.sock.recvfrom(self.frame_size)
             except socket.timeout:
                 continue
-            except OSError:
+            except Exception as e:
+                logger.warning(f"RecvFrom Raised exception {e}")
                 break
 
             sender_ip, _ = addr
 
             try:
                 msg = json.loads(raw.decode())
-                logger.debug(
-                    "[UDP RX] from %s robot_id=%s message_type=%s payload=%s",
-                    sender_ip,
-                    robot_id,
-                    msg.get("message_type"),
-                    msg.get("payload"),
-                )
-
             except Exception:
                 continue
 
@@ -335,19 +330,26 @@ class UDPServer:
             protocol_id = msg.get("protocol", None)
             robot_id = msg.get("robot_id", None)
 
-            # set up a complete parsing here
+            logger.debug(
+                "[UDP RX] from %s robot_id=%s message_type=%s payload=%s",
+                sender_ip,
+                robot_id,
+                msg.get("message_type"),
+                msg.get("payload"),
+            )
+
             if protocol_id != self.protocol_id:
                 continue
-            if robot_id not in range(1, 5):
+            if robot_id not in range(1, 4):
                 continue
 
             robot_stored_ip = self.robot_ip_table.get(robot_id, 'New')
             if robot_stored_ip == 'New':
                 self.robot_ip_table[robot_id] = sender_ip
                 logger.info(f"New robot id-ip discovered: ID{robot_id}-IP{sender_ip}")
-            elif robot_stored_ip != sender_ip:
+            elif robot_stored_ip != sender_ip:  # dynamic ip overwrite
                 self.robot_ip_table[robot_id] = sender_ip
-                self.robot_last_seen_table[robot_id] = time.time()
+                self.robot_last_seen_table[robot_id] = time.time() # last seen checked to present the aliveness of the robot
                 logger.info(f"New id-ip mapping: ID{robot_id}-IP{sender_ip}")
 
             message_type = msg.get("message_type")
@@ -391,8 +393,7 @@ class UDPServer:
             {
                 "robot_id": robot_id,
                 "request_id": request_id,
-                "status": payload.get("status"),
-                "error": payload.get("error")
+                **payload
             }
         )
 
@@ -408,16 +409,16 @@ class UDPServer:
         )
 
     def message_handler(self, robot_id, message_type, msg):
-        if message_type == "heartbeat":
+        if message_type == MessageType.HEARTBEAT.value:
             self.heartbeat_handler(robot_id, message_type, msg)
 
-        elif message_type == "event":
+        elif message_type == MessageType.EVENT.value:
             self.event_handler(robot_id, message_type, msg)
 
-        elif message_type == "feedback":
+        elif message_type == MessageType.FEEDBACK.value:
             self.feedback_handler(robot_id, message_type, msg)
 
-        elif message_type == "error":
+        elif message_type == MessageType.ERROR.value:
             self.error_handler(robot_id, message_type, msg)
 
         else:
@@ -429,13 +430,13 @@ class UDPServer:
     # -------------------------
     def send_reset(self, destination: DestinationRobot = DestinationRobot.ALL):
         # build reset message according to protocol
-        message = UDPMessage.reset_board()
+        message = UDPMessage.reset_board(destination)
         logger.debug(f"board reset message: {message.to_json()}")
         self.message_sender(robot_id=destination, message=message)
 
     def send_stop(self, destination: DestinationRobot = DestinationRobot.ALL):
         # build stop message according to protocol
-        message = UDPMessage.emergency_stop()
+        message = UDPMessage.emergency_stop(destination)
         logger.debug(f"emergency stop message: {message.to_json()}")
         self.message_sender(robot_id=destination, message=message)
 
@@ -443,7 +444,7 @@ class UDPServer:
                   route_policy: RoutePolicy = RoutePolicy.SHORTEST,
                   navigation_type: NavigationType = NavigationType.MANUAL):
         # build drive message according to protocol
-        message = UDPMessage.move(move_destination=move_destination, route_policy=route_policy,
+        message = UDPMessage.move(destination,move_destination=move_destination, route_policy=route_policy,
                                   navigation_type=navigation_type)
         logger.debug(f"drive message: {message.to_json()}")
         self.message_sender(robot_id=destination, message=message)
@@ -453,7 +454,7 @@ class UDPServer:
         speed = 100
         if destination not in [DestinationRobot.ERR, DestinationRobot.NONE, DestinationRobot.ALL]:
             speed = self.robot_prop_table[destination.value].get("motor_speed", 100)
-        message = UDPMessage.motor_control(motor_list=motor_id, direction=direction, speed=speed, angle=angle,
+        message = UDPMessage.motor_control(destination, motor_list=motor_id, direction=direction, speed=speed, angle=angle,
                                            duration_ms=duration_ms)
         logger.debug(f"motor control message: {message.to_json()}")
         self.message_sender(robot_id=destination, message=message)
@@ -461,7 +462,7 @@ class UDPServer:
     def send_set_property(self, destination: DestinationRobot = DestinationRobot.NONE, prop: ConfigProperty = None,
                           value=None):
         # build set property message according to protocol
-        message = UDPMessage.set_property(prop=prop, new_value=value)
+        message = UDPMessage.set_property(destination, prop=prop, new_value=value)
         logger.debug(f"set property message: {message.to_json()}")
         self.message_sender(robot_id=destination, message=message)
 
@@ -478,6 +479,8 @@ class UDPServer:
                 if not ip:
                     logger.debug(f"No IP known for robot {this_id}")
                     continue
+                logger.debug(f"Sending message {message} to IP {ip}, robot {this_id}")
+
                 self.sock.sendto(
                     message.to_json().encode(),
                     (ip, self.bind_port)
@@ -495,6 +498,7 @@ class UDPServer:
             if not ip:
                 logger.debug(f"No IP known for robot {robot_id}")
             else:
+                logger.debug(f"Sending message {message} to IP {ip}, robot {robot_id.value}")
                 encoded_msg = message.to_json().encode()
                 self.sock.sendto(
                     encoded_msg,

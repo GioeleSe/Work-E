@@ -7,7 +7,11 @@
 #include "freertos/timers.h"
 #include "esp_system.h"
 #include "main_robot.h"
-
+#ifndef MOTOR_TEST
+#include <WiFi.h>
+#include "robot_server.h"
+#include "udp_client.h"
+#endif
 
 #define MAIN_FSM_SETUP       10
 #define MAIN_FSM_IDLE        20
@@ -66,7 +70,8 @@ Servo leverServo;
 typedef struct {
     int           servoAngle;
     int           scanDir;        // +1 = sweeping toward MAX, -1 = toward MIN
-    int           lastMinDistance;
+    int           lastDistance;
+    int           sweepMinDistance;
     bool          obstacleDetected;
     bool          ready;
     unsigned long settleUntil;
@@ -123,8 +128,14 @@ int self_prop_set_route_policy(int new_value)      { PROP_SET(prop_route_policy,
 int self_prop_set_radar(int new_value)             { PROP_SET(prop_radar, int, new_value); }
 int self_prop_set_screen(int new_value)            { PROP_SET(prop_screen, int, new_value); }
 int self_prop_set_obstacle_cleaner(int new_value)  { PROP_SET(prop_obstacle_cleaner, int, new_value); }
-int self_prop_set_object_loader(int new_value)     { PROP_SET(prop_object_loader, int, new_value); }
-int self_prop_set_object_unloader(int new_value)   { PROP_SET(prop_object_unloader, int, new_value); }
+int self_prop_set_object_loader(int new_value) {
+    if (self_motion_open_claw(new_value) != 0) return -1;
+    PROP_SET(prop_object_loader, int, new_value);
+}
+int self_prop_set_object_unloader(int new_value) {
+    if (self_motion_move_lever(new_value) != 0) return -1;
+    PROP_SET(prop_object_unloader, int, new_value);
+}
 int self_prop_set_object_compacter(int new_value)  { PROP_SET(prop_object_compacter, int, new_value); }
 
 static void dc_motor_stop(uint8_t ch1, uint8_t ch2);
@@ -310,7 +321,7 @@ int self_motion_car_proceed(Direction_t direction) {
 
 int self_motion_car_rotate(Direction_t direction) {
     int pct = speed_to_pct();
-    int dir = (direction == Direction_RIGHT) ? 1 : -1;
+    int dir = (direction == Direction_RIGHT) ? -1 : 1;
     dc_motor_start(CH_WHEEL_R_IN1, CH_WHEEL_R_IN2, dir, pct, 0);
     dc_motor_start(CH_WHEEL_L_IN3, CH_WHEEL_L_IN4, dir, pct, 0);
     return 0;
@@ -370,7 +381,8 @@ int self_radar_init() {
 
     radar_state.servoAngle       = RADAR_ANGLE_MIN;
     radar_state.scanDir          = 1;
-    radar_state.lastMinDistance  = -1;
+    radar_state.lastDistance     = -1;
+    radar_state.sweepMinDistance = 9999;
     radar_state.obstacleDetected = false;
     radar_state.ready            = true;
     radar_state.settleUntil      = 0;
@@ -390,18 +402,33 @@ void self_radar_tick() {
     if (!radar_state.ready || !prop_radar || millis() < radar_state.settleUntil) return;
 
     uint16_t raw = radar_sensor.readRangeContinuousMillimeters();
-    if (!radar_sensor.timeoutOccurred() && raw != 65535) {
-        radar_state.lastMinDistance = (int)raw;
-        radar_state.obstacleDetected = (radar_state.lastMinDistance < RADAR_OBSTACLE_MM);
+    if (!radar_sensor.timeoutOccurred()) {
+        int dist_mm = (raw == 65535) ? 9999 : (int)raw;  // 9999 = out of range (no obstacle)
+        radar_state.lastDistance = dist_mm;
+        radar_state.obstacleDetected = (dist_mm < RADAR_OBSTACLE_MM);
+        if (dist_mm < radar_state.sweepMinDistance)
+            radar_state.sweepMinDistance = dist_mm;
+#ifndef MOTOR_TEST
+        robot_server_send_radar_event(radar_state.servoAngle, dist_mm);
+#endif
     }
 
     int next = radar_state.servoAngle + radar_state.scanDir * RADAR_STEP_DEG;
+    bool reversed = false;
     if (next >= RADAR_ANGLE_MAX) {
         next = RADAR_ANGLE_MAX;
         radar_state.scanDir = -1;
+        reversed = true;
     } else if (next <= RADAR_ANGLE_MIN) {
         next = RADAR_ANGLE_MIN;
         radar_state.scanDir = 1;
+        reversed = true;
+    }
+    if (reversed && radar_state.sweepMinDistance < 9999) {
+#ifndef MOTOR_TEST
+        robot_server_send_radar_min(radar_state.sweepMinDistance);
+#endif
+        radar_state.sweepMinDistance = 9999;
     }
     radar_move_to(next);
 }
@@ -456,8 +483,6 @@ void self_display_show(const char* line1, const char* line2) {
 // ---- Arduino entry points (excluded from motor_test build) ----
 
 #ifndef MOTOR_TEST
-#include <WiFi.h>
-#include "robot_server.h"
 
 static const char* state_to_str(RobotState_t s) {
     switch (s) {
@@ -474,11 +499,8 @@ static void display_update() {
     snprintf(line1, sizeof(line1), "Delta  ID:%d  %s",
              SELF_ROBOT_ID,
              state_to_str((RobotState_t)self_prop_get_robot_state()));
-    snprintf(line2, sizeof(line2), "U:%d P:%d F:%d C:%d",
-             server_get_rx_count(),
-             robot_server_get_packet_count(),
-             robot_server_get_fields_ok(),
-             robot_server_get_cmd_count());
+    IPAddress ip = WiFi.localIP();
+    snprintf(line2, sizeof(line2), "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
     self_display_show(line1, line2);
 }
 
@@ -496,7 +518,7 @@ void setup() {
     if (self_display_init() != 0) {
         Serial.println("[OLED] init failed");
     } else {
-        self_display_show("Delta  ID:1", "WiFi connecting...");
+        self_display_show("Delta  ID:2", "WiFi connecting...");
     }
 
     WiFi.mode(WIFI_STA);
@@ -508,11 +530,11 @@ void setup() {
     }
     WiFi.scanDelete();
 
-    WiFi.config(IPAddress(192, 168, 137, 100),  // Delta static IP
+    WiFi.config(IPAddress(192, 168, 137, 102),  // Delta static IP (robot 2)
                 IPAddress(192, 168, 137,   1),  // PC hotspot gateway
                 IPAddress(255, 255, 255,   0),
                 IPAddress(192, 168, 137,   1)); // DNS = gateway
-    WiFi.begin("MARUI-MACHINE", "67a0A72%");
+    WiFi.begin("local_hotspot", "esp32_mcu");
     Serial.print("[WiFi] Connecting");
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
@@ -538,6 +560,9 @@ void setup() {
 
     pinMode(PIN_WHEELS_DRIVER_SLEEP, OUTPUT);
     digitalWrite(PIN_WHEELS_DRIVER_SLEEP, HIGH);
+
+    client_init();
+    robot_server_send_connected();
 
     if (self_radar_init() != 0) {
         Serial.println("[RADAR] VL53L0X init failed");

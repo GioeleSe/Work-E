@@ -11,6 +11,7 @@
 extern "C" {
 #endif
 
+void client_init();
 int client_main_test();
 int client_send_packet(char* msg, platform_ssize_t msg_size);
 

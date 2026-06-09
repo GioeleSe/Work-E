@@ -13,21 +13,6 @@
     --accent-blue: #3a86ff;
     --light-lavander: #4a568aa1;
     --neon-red: #ff0044;
-<<<<<<< Updated upstream
-
-}
-
-body {
-    background-color: var(--light-lavander);
-    /* background: radial-gradient(circle at center, #1b2030 0%, #0f111a 100%); */
-    color: #e0e0e0;
-    font-family: 'Segoe UI', Roboto, sans-serif;
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-}
-
-=======
     --neon-white: #f5f5f5;
 }
 
@@ -81,7 +66,6 @@ body {
 /* ==========================================================================
    EXISTING: Panels & Controls (Kept for redirect pages)
    ========================================================================== */
->>>>>>> Stashed changes
 .control-panel {
     background: var(--card-bg);
     border: 1px solid #333;
@@ -157,11 +141,7 @@ body {
 /* Neon Stop Button */
 .stop-btn {
     background: transparent;
-<<<<<<< Updated upstream
-    border: 3px solid var(--neon-red);
-=======
     border: 3px solid var(--neon-white);
->>>>>>> Stashed changes
     color: white;
     border-radius: 50%;
     width: 100px;
@@ -173,19 +153,11 @@ body {
 }
 
 .stop-btn:active {
-<<<<<<< Updated upstream
-    background: var(--neon-red);
-    box-shadow: 0 0 30px var(--neon-red);
-}
-
-/* Sliders */
-=======
     background: var(--neon-white);
     box-shadow: 0 0 30px var(--neon-white);
 }
 
 /* Sliders & Forms */
->>>>>>> Stashed changes
 .form-range::-webkit-slider-thumb {
     background: var(--accent-blue);
 }

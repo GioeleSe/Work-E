@@ -26,10 +26,6 @@
         <h1 id="connecting-label">
             Connecting <span id="connecting-animation"> ... </span>
         </h1>
-<<<<<<< Updated upstream
-
-=======
->>>>>>> Stashed changes
     </div>
 
     <div class="container control-panel px-0 main-container" id="main-container">
@@ -50,10 +46,7 @@
                 </div>
             </div>
         </div>
-<<<<<<< Updated upstream
-=======
         
->>>>>>> Stashed changes
         <div class="row">
             <div class="carcontrol-container col-md-4 g-0" id="carcontrol-container">
                 <div class="sub-panel ">
@@ -88,10 +81,6 @@
                             </button>
 
                         </div>
-<<<<<<< Updated upstream
-
-=======
->>>>>>> Stashed changes
                     </div>
                 </div>
             </div>
@@ -100,10 +89,6 @@
                 <div class="sub-panel ">
                     <h6 class="mb-4">Advanced Motor Usage</h6>
 
-<<<<<<< Updated upstream
-                    <!-- MOTOR SELECTION -->
-=======
->>>>>>> Stashed changes
                     <div class="mb-3">
                         <label class="form-label">Motor ID(s)</label>
                         <select id="motor_ids" class="form-select form-select-sm" multiple
@@ -116,10 +101,6 @@
                         </select>
                     </div>
 
-<<<<<<< Updated upstream
-                    <!-- DIRECTION -->
-=======
->>>>>>> Stashed changes
                     <div class="mb-3 prop-selection-block">
                         <label class="form-label">Direction</label>
                         <select id="motor_direction" class="form-select form-select-sm">
@@ -131,10 +112,6 @@
                         </select>
                     </div>
 
-<<<<<<< Updated upstream
-                    <!-- SPEED -->
-=======
->>>>>>> Stashed changes
                     <div class="mb-3">
                         <label class="form-label d-flex justify-content-between">
                             <span>Speed</span>
@@ -144,30 +121,18 @@
                             oninput="document.getElementById('speed_value').innerText=this.value">
                     </div>
 
-<<<<<<< Updated upstream
-                    <!-- ANGLE -->
-=======
->>>>>>> Stashed changes
                     <div class="mb-3">
                         <label class="form-label">Angle</label>
                         <input type="number" id="motor_angle" class="form-control form-control-sm" min="-360" max="360"
                             step="1" placeholder="-360° up to +360°">
                     </div>
 
-<<<<<<< Updated upstream
-                    <!-- DURATION -->
-=======
->>>>>>> Stashed changes
                     <div class="mb-4">
                         <label class="form-label">Duration (ms) – optional</label>
                         <input type="number" id="motor_duration" class="form-control form-control-sm" min="0"
                             max="10000" placeholder="Leave empty for continuous">
                     </div>
 
-<<<<<<< Updated upstream
-                    <!-- EXECUTE BUTTON -->
-=======
->>>>>>> Stashed changes
                     <button class="btn btn-primary btn-sm btn-exec-motor" onclick="execute_motor_command()">
                         Execute Motor Command
                     </button>
@@ -175,21 +140,10 @@
                 </div>
             </div>
 
-<<<<<<< Updated upstream
-
-            <div class="propcontrol-container col-md-4 g-0" id="propcontrol-container">
-
-                <div class="sub-panel ">
-                    <h6 class="mb-4">Advanced Configuration</h6>
-
-                    <!-- ENUM PROPERTIES -->
-
-=======
             <div class="propcontrol-container col-md-4 g-0" id="propcontrol-container">
                 <div class="sub-panel ">
                     <h6 class="mb-4">Advanced Configuration</h6>
 
->>>>>>> Stashed changes
                     <div class="mb-3 prop-selection-block">
                         <label class="form-label">Speed Mode</label>
                         <select class="form-select form-select-sm" onchange="set_property('SPEED', this.value)">
@@ -217,10 +171,6 @@
                         </select>
                     </div>
 
-<<<<<<< Updated upstream
-
-=======
->>>>>>> Stashed changes
                     <div class="mb-3 prop-selection-block">
                         <label class="form-label">Radar Mode</label>
                         <select class="form-select form-select-sm" onchange="set_property('RADAR', this.value)">
@@ -229,10 +179,6 @@
                         </select>
                     </div>
 
-<<<<<<< Updated upstream
-
-=======
->>>>>>> Stashed changes
                     <div class="mb-3 prop-selection-block">
                         <label class="form-label">Screen Mode</label>
                         <select class="form-select form-select-sm" onchange="set_property('SCREEN', this.value)">
@@ -241,51 +187,6 @@
                         </select>
                     </div>
 
-<<<<<<< Updated upstream
-                    <!-- 
-                        <hr style="border-color: #333;">
-
-                        <div class="form-check form-switch mb-2">
-                            <label class="form-check-label">Radar</label>
-                            <input class="form-check-input" type="checkbox"
-                                onchange="set_property('RADAR', this.checked ? 1 : 0)">
-                        </div>
-
-                        <div class="form-check form-switch mb-2">
-                            <label class="form-check-label">Screen</label>
-                            <input class="form-check-input" type="checkbox"
-                                onchange="set_property('SCREEN', this.checked ? 1 : 0)">
-                        </div>
-
-                        <div class="form-check form-switch mb-2">
-                            <label class="form-check-label">Obstacle Cleaner</label>
-                            <input class="form-check-input" type="checkbox"
-                                onchange="set_property('OBSTACLE_CLEANER', this.checked ? 1 : 0)">
-                        </div>
-
-                        <div class="form-check form-switch mb-2">
-                            <label class="form-check-label">Object Loader</label>
-                            <input class="form-check-input" type="checkbox"
-                                onchange="set_property('OBJECT_LOADER', this.checked ? 1 : 0)">
-                        </div>
-
-                        <div class="form-check form-switch mb-3">
-                            <label class="form-check-label">Object Unloader</label>
-                            <input class="form-check-input" type="checkbox"
-                                onchange="set_property('OBJECT_UNLOADER', this.checked ? 1 : 0)">
-                        </div>
-
-                        <div class="form-check form-switch mb-4">
-                            <label class="form-check-label">Object Compacter</label>
-                            <input class="form-check-input" type="checkbox"
-                                onchange="set_property('OBJECT_COMPACTER', this.checked ? 1 : 0)">
-                        </div>
-                    -->
-
-                    <!-- GET PROPERTIES BUTTON -->
-
-                    <button class="btn btn-outline-primary btn-sm btn-get-properties" onclick="get_properties()">
-=======
                     <hr style="border-color: #333;" class="my-3">
 
                     <div class="d-grid gap-2 mb-4">
@@ -306,7 +207,6 @@
                     </div>
 
                     <button class="btn btn-outline-primary btn-sm w-100 btn-get-properties" onclick="get_properties()">
->>>>>>> Stashed changes
                         Refresh Properties
                     </button>
                 </div>
@@ -316,11 +216,7 @@
     </div>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-<<<<<<< Updated upstream
-    <script src="{{ url_for('static', filename='/advanced_gui.js') }}"   ></script>
-=======
     <script src="{{ url_for('static', filename='/advanced_gui.js') }}"></script>
->>>>>>> Stashed changes
 </body>
 
 </html>

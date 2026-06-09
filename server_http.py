@@ -3,15 +3,10 @@ from flask_socketio import SocketIO
 import threading
 from enum import Enum
 import logging
-<<<<<<< Updated upstream
-logger = logging.getLogger(__name__)
-
-=======
 
 logger = logging.getLogger(__name__)
 
 
->>>>>>> Stashed changes
 class ConfigProperty(Enum):
     SPEED = 0
     FEEDBACK = 1
@@ -22,10 +17,7 @@ class ConfigProperty(Enum):
     SCREEN = 6
     LIGHTS = 7
     HORN = 8
-<<<<<<< Updated upstream
-=======
     BRUSHES = 9
->>>>>>> Stashed changes
     OBSTACLE_CLEANER = 10
     OBJECT_LOADER = 11
     OBJECT_UNLOADER = 12
@@ -38,10 +30,6 @@ class ConfigProperty(Enum):
         except KeyError:
             raise ValueError
 
-<<<<<<< Updated upstream
-=======
-
->>>>>>> Stashed changes
 class DestinationRobot(Enum):
     ERR = -2
     NONE = -1
@@ -54,32 +42,16 @@ class DestinationRobot(Enum):
     @classmethod
     def from_int(cls, value: int | str):
         try:
-<<<<<<< Updated upstream
-            return cls(int(value))
-        except (ValueError, TypeError):
-            return cls.ERR
-
-    @classmethod
-    def from_str(cls, value: str):
-        try:
-            return cls[value.upper()]
-        except (KeyError, AttributeError):
-=======
             value = int(value)
             if value not in [r.value for r in cls]:
                 return cls.ERR
             return cls(value)
         except (TypeError, ValueError):
->>>>>>> Stashed changes
             return cls.ERR
 
     def __repr__(self):
         return "<%s.%s>" % (self.__class__.__name__, self._name_)
 
-<<<<<<< Updated upstream
-=======
-
->>>>>>> Stashed changes
 class Direction(Enum):
     FORWARD = 0
     BACKWARD = 1
@@ -94,19 +66,6 @@ class Direction(Enum):
         except KeyError:
             raise ValueError
 
-<<<<<<< Updated upstream
-class HTTPServer:
-    def __init__(
-        self,
-        host="0.0.0.0",
-        port=80,
-        secret_key="secret!",
-        on_control_settings=None,
-        on_command=None,
-        on_set_property=None,
-        on_get_property=None,
-        udp_server=None
-=======
 
 class HTTPServer:
     def __init__(
@@ -119,7 +78,6 @@ class HTTPServer:
             on_set_property=None,
             on_get_property=None,
             udp_server=None
->>>>>>> Stashed changes
     ):
         self.host = host
         self.port = port
@@ -130,11 +88,7 @@ class HTTPServer:
         self.on_get_property = on_get_property or self._default_on_get_property
         self.udp_server = udp_server
 
-<<<<<<< Updated upstream
-        self.destination_robot = DestinationRobot.NONE
-=======
         # NOTE: self.destination_robot removed to maintain absolute multi-page concurrency.
->>>>>>> Stashed changes
 
         self.app = Flask(__name__)
         self.app.config["SECRET_KEY"] = secret_key
@@ -155,9 +109,6 @@ class HTTPServer:
         @self.app.route("/", methods=["GET"])
         def default():
             return render_template("index.html")
-<<<<<<< Updated upstream
-        
-=======
 
         @self.app.route("/beta", methods=["GET"])
         def beta_control():
@@ -171,7 +122,6 @@ class HTTPServer:
         def delta_control():
             return render_template("delta_control.html")
 
->>>>>>> Stashed changes
         @self.app.route("/advanced", methods=["GET"])
         def advanced():
             return render_template("advanced_gui.html")
@@ -204,30 +154,14 @@ class HTTPServer:
     # Lifecycle
     # -------------------------
     def start(self, threaded=False):
-<<<<<<< Updated upstream
-        """
-        threaded=False → blocking (recommended for main process)
-        threaded=True  → background thread
-        """
-        if threaded:
-            self.thread = threading.Thread(
-                target=self._run,
-                daemon=True
-            )
-=======
         if threaded:
             self.thread = threading.Thread(target=self._run, daemon=True)
->>>>>>> Stashed changes
             self.thread.start()
         else:
             self._run()
 
     def _run(self):
         logger.debug(f"[HTTP] Listening on {self.host}:{self.port}")
-<<<<<<< Updated upstream
-
-=======
->>>>>>> Stashed changes
         self.socketio.run(
             self.app,
             host=self.host,
@@ -238,64 +172,14 @@ class HTTPServer:
         )
 
     def stop(self):
-<<<<<<< Updated upstream
-        # Flask-SocketIO does not support clean programmatic shutdown
-        # Process-level shutdown is the correct model
         pass
 
-    # -------------------------
-    # Outbound events (UDP → GUI)
-    # -------------------------
-=======
-        pass
-
->>>>>>> Stashed changes
     def emit(self, event, data):
         self.socketio.emit(event, data)
 
     def link_udp_server(self, udp_server):
         self.udp_server = udp_server
 
-<<<<<<< Updated upstream
-    # incoming packets:
-    # {
-    #   mode: [manual | auto | settings ]
-    #   cmd: [ stop | drive | lights | horn | speed | destination_robot ]
-    #   argc: [ forward | reverse | left | right | stop | 0..100 | ON | OFF | PLAY | STOP ]
-    # }
-    def _default_on_control_settings(self, data):
-        logger.debug(f"Changing settings: {data}")
-        check = False
-        if data.get("mode", 'def') == 'settings':
-            if data.get("cmd", 'def') == 'destination_robot':
-                if data.get("argc", 'def') in range(-2, 5):
-                    # correct robot selection message
-                    check =True
-        if check:
-            self.destination_robot = DestinationRobot.from_int(data.get("argc"))
-            logger.warning(f"setting destination_robot to {self.destination_robot}")
-            logger.debug(f"Changed destination robot to {self.destination_robot}")
-        else:
-            logger.debug(f"Invalid control settings message: {data}")
-
-    def _default_on_command(self, data):
-        logger.debug(f"Command message:{data}")
-        if data.get("mode", 'def') not in ["manual" , "auto"]:
-            logger.debug(f"Invalid command mode: {data.get('mode', 'Not defined')}")
-        else:
-            if data.get("cmd", 'def') == 'stop':
-                # plain stop function (stop here -> full stop)
-                self.udp_server.send_stop(destination=self.destination_robot)
-
-            elif data.get("cmd", 'def') == 'reset':
-                self.udp_server.send_reset(destination=self.destination_robot)
-
-            elif data.get("cmd", 'def') == 'drive':
-                if data.get("argc", 'def') in ['forward', 'reverse', 'left', 'right' , 'stop']: # stop here -> motor stop
-                    # correct move command
-                    direction = Direction.from_str(data.get("argc"))
-                    self.udp_server.send_motor_control(destination=self.destination_robot, motor_id=[], direction=direction, angle=0)
-=======
     # -------------------------
     # Internal Packet Processing Helpers
     # -------------------------
@@ -330,7 +214,6 @@ class HTTPServer:
                     direction = Direction.from_str(argc_mapped)
                     self.udp_server.send_motor_control(destination=dest_robot, motor_id=[], direction=direction,
                                                        angle=0)
->>>>>>> Stashed changes
                 else:
                     logger.debug(f"Invalid drive command: {data}")
             else:
@@ -338,17 +221,6 @@ class HTTPServer:
 
     def _default_on_set_property(self, data):
         logger.debug(f"Property set message: {data}")
-<<<<<<< Updated upstream
-        check = False
-        argc = None
-        if data.get("cmd", 'def') in ['speed', 'lights', 'horn']:
-            argc = data.get("argc", 'def')
-            if argc in range(0,101):
-                check = True
-        if check:
-            prop = ConfigProperty.from_str(data.get("cmd"))
-            self.udp_server.send_set_property(destination=self.destination_robot, prop=prop, value=argc)
-=======
         dest_robot = self._extract_destination(data)
         check = False
         argc = None
@@ -369,23 +241,11 @@ class HTTPServer:
                 pass
             else:
                 self.udp_server.send_set_property(destination=dest_robot, prop=prop, value=argc)
->>>>>>> Stashed changes
         else:
             logger.debug(f"Invalid set property message: {data}")
 
     def _default_on_get_property(self, data):
         logger.debug(f"Property get message: {data}")
-<<<<<<< Updated upstream
-        check = False
-        if data.get("cmd", 'def') in ['speed', 'lights', 'horn']:
-            # correct get property message
-            check = True
-
-        if check:
-            self.udp_server.send_get_property(destination=self.destination_robot, prop=data.get("cmd"))
-        else:
-            logger.debug(f"Invalid get property message: {data}")
-=======
         dest_robot = self._extract_destination(data)
         check = False
         if data.get("cmd", 'def') in ['speed', 'lights', 'horn', 'brushes']:
@@ -395,4 +255,3 @@ class HTTPServer:
             self.udp_server.send_get_property(destination=dest_robot, prop=data.get("cmd"))
         else:
             logger.debug(f"Invalid get property message: {data}")
->>>>>>> Stashed changes

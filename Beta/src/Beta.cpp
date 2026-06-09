@@ -42,6 +42,7 @@ const DC_Motor_Config_t motor_pins[] = {
 const int NUM_MOTORS = sizeof(motor_pins) / sizeof(DC_Motor_Config_t);
 Motor_Timeout_t motorTimeouts[NUM_MOTORS] = {0};
 
+
 int self_prop_get_robot_id() { return robot_beta.robotID; }
 int self_prop_get_robot_state() { return (int)(robot_beta.robot_state); }
 int self_prop_get_speed() { return robot_beta.speed; }
@@ -59,18 +60,17 @@ int self_prop_get_object_compacter() { return robot_beta.object_compacter; }
 int self_prop_get_lights() { return robot_beta.lights; }
 int self_prop_set_lights(int new_value) { robot_beta.lights = new_value; return 0;}
 
-
 int self_prop_set_robot_state(int new_value) { robot_beta.robot_state = (RobotState_t)new_value; return 0;}
 int self_prop_set_speed(int new_value) { robot_beta.speed = new_value; return 0;}
 int self_prop_set_feedback(int new_value) { robot_beta.feedback = new_value; return 0;}
 int self_prop_set_debug(int new_value) { robot_beta.debug = new_value; return 0;}
-int self_prop_set_navigation_type(int new_value) { robot_beta.navigation_type = (NavigationType_t)new_value; return 0;}
+int self_prop_set_navigation_type(int new_value) { robot_beta.buzzer = new_value; return 0;} // setter reused for buzzer functionality
 int self_prop_set_route_policy(int new_value) { robot_beta.route_policy = (RoutePolicy_t)new_value; return 0;}
 int self_prop_set_radar(int new_value) { robot_beta.radar_prop = new_value; return 0;}
 int self_prop_set_screen(int new_value) { robot_beta.screen = new_value; return 0;}
 int self_prop_set_obstacle_cleaner(int new_value) { robot_beta.obstacle_cleaner = new_value; return 0;}
 int self_prop_set_object_loader(int new_value) { robot_beta.object_loader = new_value; return 0;}
-int self_prop_set_object_unloader(int new_value) { robot_beta.object_unloader = new_value; return 0;}
+int self_prop_set_object_unloader(int new_value) { robot_beta.moveTrunkCmd = new_value; return 0;}
 int self_prop_set_object_compacter(int new_value) { robot_beta.object_compacter = new_value; return 0;}
 
 
@@ -84,7 +84,7 @@ void setupWiFi()
 
     WiFiManager wm;
     wm.setConfigPortalTimeout(120);
-    wm.setSTAStaticIPConfig(staticIP, gateway, netMask, dns);
+    // wm.setSTAStaticIPConfig(staticIP, gateway, netMask, dns);
     logMessage(ErrorSeverity_t::ErrorSeverity_t_LOW, "connecting WiFiManager");
 
     if (wm.autoConnect("ESP32_WIFI_Config"))
@@ -158,6 +158,33 @@ void rebootTimerCallback(TimerHandle_t xTimer)
     logMessage(ErrorSeverity_t::ErrorSeverity_t_HIGH, "Timer expired. Executing Hard Reset...");
     ESP.restart();
 }
+
+void setupBuzzer(){
+    pinMode(PIN_BUZZER, OUTPUT);
+    digitalWrite(PIN_BUZZER, LOW);
+    logMessage(ErrorSeverity_t::ErrorSeverity_t_LOW, "buzzer setup done");
+}
+
+// plays a short triple-beep sequence when robot_beta.buzzer is set to 1
+// blocking during the beep sequence, then resets the flag to 0
+void updateBuzzer()
+{
+    if (!robot_beta.buzzer) return;
+
+    logMessage(ErrorSeverity_t::ErrorSeverity_t_LOW, "buzzer: playing beep sequence");
+
+    for (int i = 0; i < BUZZER_BEEP_COUNT; i++)
+    {
+        digitalWrite(PIN_BUZZER, HIGH);
+        delay(BUZZER_BEEP_ON_MS);
+        digitalWrite(PIN_BUZZER, LOW);
+        delay(BUZZER_BEEP_OFF_MS);
+    }
+
+    robot_beta.buzzer = 0; // reset flag after sequence
+    logMessage(ErrorSeverity_t::ErrorSeverity_t_LOW, "buzzer: sequence done");
+}
+
 
 // direct reset with log attempt only, not the gentle one
 int self_hard_reset()

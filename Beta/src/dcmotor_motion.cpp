@@ -53,20 +53,26 @@ void checkMotorTimeouts()
     unsigned long currentTime = millis();
     for (int i = 1; i < NUM_MOTORS; i++)
     {
-        if (motorTimeouts[i].isActive && currentTime >= motorTimeouts[i].stopTime) // target time achieved, stop the motor
-        {
-            if (i == MOTOR_RADAR)
+        if (motorTimeouts[i].isActive){
+            if (robot_beta.isRequiredStop || (currentTime >= motorTimeouts[i].stopTime)) // target time achieved, stop the motor
             {
-                robot_beta.radar.motorServo.writeMicroseconds(SERVO_STOP_US);
+                if (i == MOTOR_RADAR)
+                {
+                    robot_beta.radar.motorServo.writeMicroseconds(SERVO_STOP_US);
+                }
+                else
+                {
+                    ledcWrite(motor_pins[i].pinA, 0); // stop command for other DRV8833 motors
+                    ledcWrite(motor_pins[i].pinB, 0);
+                }
+                motorTimeouts[i].isActive = false;
+                if(robot_beta.isRequiredStop){
+                    logMessage(ErrorSeverity_t::ErrorSeverity_t_LOW, "motor stopped by emergency button");
+                }else{
+                    logMessage(ErrorSeverity_t::ErrorSeverity_t_LOW, "motor timed out and stopped automatically");
+                }
+                    
             }
-            else
-            {
-                ledcWrite(motor_pins[i].pinA, 0); // stop command for other DRV8833 motors
-                ledcWrite(motor_pins[i].pinB, 0);
-            }
-            motorTimeouts[i].isActive = false;
-
-            logMessage(ErrorSeverity_t::ErrorSeverity_t_LOW, "motor timed out and stopped automatically");
         }
     }
 }

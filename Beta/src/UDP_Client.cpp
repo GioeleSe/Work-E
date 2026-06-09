@@ -1,6 +1,10 @@
 #include "common_platform_abstr.h"
 #include "udp_client.h"
 
+static platform_socket_fd_t _client_sockfd = -1;
+static platform_sockaddr_in_t _client_server_info;
+static platform_socklen_t _client_server_info_size;
+
 platform_socket_fd_t socket_init(){
     platform_socket_fd_t sockfd;
     sockfd = platform_socket_create_udp();
@@ -45,19 +49,26 @@ void client_socket_set_server_info(platform_sockaddr_in_t* server_info, const in
 }
 
 // mainly function used from other files.
-// initialize the socket and send a string message
-// return -1 if the send failed
+// use the socket to send a string message
 // Note: use function serializeJson(json_doc, char_msg) to pass the string message
+static void client_ensure_socket(){
+    if(_client_sockfd >= 0) return;
+    _client_sockfd = platform_socket_create_udp();
+    client_socket_set_server_info(&_client_server_info, SERVER_PORT, SERVER_ADDRESS);
+    _client_server_info_size = (platform_socklen_t)sizeof(_client_server_info);
+    platform_print("client - persistent socket created\n");
+}
+
 int client_send_packet(char* msg, platform_ssize_t msg_size){
-    platform_sockaddr_in_t server_info;
-    platform_socket_fd_t sockfd = platform_socket_create_udp();
-    client_socket_set_server_info(&server_info, SERVER_PORT, SERVER_ADDRESS);  
-    platform_socklen_t size_of_server_info = (platform_socklen_t)sizeof(server_info);
-    int send_result = socket_send_message(sockfd, msg, msg_size, (platform_sockaddr_t *)&server_info, &size_of_server_info);
+    client_ensure_socket();
+    int send_result = socket_send_message(_client_sockfd, msg, msg_size, (platform_sockaddr_t *)&_client_server_info, &_client_server_info_size);
     if((RETRY_SEND_MESSAGE) && (send_result < 0)){
+        platform_socket_close(_client_sockfd);
+        _client_sockfd = -1;
+        client_ensure_socket();
         int attempt_counter = 0;
         do{
-            send_result = socket_send_message(sockfd, msg, msg_size, (platform_sockaddr_t *)&server_info, &size_of_server_info);
+            send_result = socket_send_message(_client_sockfd, msg, msg_size, (platform_sockaddr_t *)&_client_server_info, &_client_server_info_size);
             attempt_counter++;
         }while(send_result < 0 && (attempt_counter < RETRY_SEND_MESSAGE_MAX_ATTEMPTS));
     }

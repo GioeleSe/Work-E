@@ -366,47 +366,59 @@ int set_config_handler(uint16_t command_uuid, SetConfigPayload_t* set_config_pay
     reply_packet["message_type"] = (int)MessageType_t::MessageType_FEEDBACK;
     reply_packet["request_uuid"] = command_uuid;                    // use the same as the command/request so that the server can track the source event for this reply
     reply_packet["payload"]["status"] = ActionResult_t::ActionResult_SUCCESS;                       // default to success, changed if any later step fails
-    
+
     int int_new_value = (set_config_payload->new_value);   // common copy here as int, for now the only property type (used as enum index)
-    
+
+    platform_print("set_config_handler: prop=%d new_value=%d uuid=%d\n",
+                   set_config_payload->prop, int_new_value, command_uuid);
+
     switch(set_config_payload->prop){
         case ConfigFields_t::ConfigFields_SPEED:
+            platform_print("set_config_handler: setting SPEED to %d\n", int_new_value);
             self_prop_set_speed(int_new_value);
         break;
         case ConfigFields_t::ConfigFields_FEEDBACK:
+            platform_print("set_config_handler: setting FEEDBACK to %d\n", int_new_value);
             self_prop_set_feedback(int_new_value);
         break;
         case ConfigFields_t::ConfigFields_DEBUG:
+            platform_print("set_config_handler: setting DEBUG to %d\n", int_new_value);
             self_prop_set_debug(int_new_value);
         break;
         case ConfigFields_t::ConfigFields_NAVIGATION_TYPE:
+            platform_print("set_config_handler: setting NAVIGATION_TYPE to %d\n", int_new_value);
             self_prop_set_navigation_type(int_new_value);
         break;
         case ConfigFields_t::ConfigFields_ROUTE_POLICY:
+            platform_print("set_config_handler: setting ROUTE_POLICY to %d\n", int_new_value);
             self_prop_set_route_policy(int_new_value);
         break;
         case ConfigFields_t::ConfigFields_RADAR:
+            platform_print("set_config_handler: setting RADAR to %d\n", int_new_value);
             self_prop_set_radar(int_new_value);
         break;
         case ConfigFields_t::ConfigFields_SCREEN:
+            platform_print("set_config_handler: setting SCREEN to %d\n", int_new_value);
             self_prop_set_screen(int_new_value);
         break;
         case ConfigFields_t::ConfigFields_LIGHTS:
+            platform_print("set_config_handler: setting LIGHTS to %d\n", int_new_value);
             self_prop_set_lights(int_new_value);
         break;
-        // case ConfigFields_t::ConfigFields_BRUSHES:
-        //     self_prop_set_brushes(int_new_value);
-        // break;
         case ConfigFields_t::ConfigFields_OBSTACLE_CLEANER:
+            platform_print("set_config_handler: setting OBSTACLE_CLEANER to %d\n", int_new_value);
             self_prop_set_obstacle_cleaner(int_new_value);
         break;
         case ConfigFields_t::ConfigFields_OBJECT_LOADER:
+            platform_print("set_config_handler: setting OBJECT_LOADER to %d\n", int_new_value);
             self_prop_set_object_loader(int_new_value);
             break;
         case ConfigFields_t::ConfigFields_OBJECT_UNLOADER:
+            platform_print("set_config_handler: setting OBJECT_UNLOADER to %d\n", int_new_value);
             self_prop_set_object_unloader(int_new_value);
         break;
         case ConfigFields_t::ConfigFields_OBJECT_COMPACTER:
+            platform_print("set_config_handler: setting OBJECT_COMPACTER to %d\n", int_new_value);
             self_prop_set_object_compacter(int_new_value);
         break;
         default:
@@ -415,6 +427,7 @@ int set_config_handler(uint16_t command_uuid, SetConfigPayload_t* set_config_pay
         break;
     }
 
+    platform_print("set_config_handler: sending reply for uuid=%d\n", command_uuid);
     char reply_packet_serialized[BUFFER_SIZE];
     ssize_t reply_packet_serialized_size = serializeJson(reply_packet, reply_packet_serialized);
     client_send_packet(reply_packet_serialized, reply_packet_serialized_size);                      // error of the sending procedure ignored (set RETRY_SEND_MESSAGE to 1 in udp_client.h to perform multiple attempts in the (socket) sending procedure)
@@ -608,79 +621,98 @@ int PacketHandler(char* packet, ssize_t packet_size){
     JsonDocument json_doc;
     DeserializationError json_doc_error = deserializeJson(json_doc, packet, packet_size);
     if (json_doc_error) {
-        platform_print("deserializeJson() returned %s\n", json_doc_error.c_str());
+        platform_print("PacketHandler: deserializeJson() failed: %s\n", json_doc_error.c_str());
         return -1;
     }
-    if(check_fields(json_doc)<0){
-        return -1;
-    }
-    
-    const char* protocol = json_doc["protocol"].as<const char*>();
-    int robot_id = json_doc["robot_id"].as<int>();
-    int message_type = json_doc["message_type"].as<int>();
-    int request_id = json_doc["request_uuid"].as<int>();
-    int mode = json_doc["mode"].as<int>();
-    JsonObject payload = json_doc["payload"].as<JsonObject>();
-    long timestamp = json_doc["timestamp"].as<long>();
-    
-    if(message_type != 0){
-        platform_print("invalid command value (expected value: 0)\n");
-        return -1;
 
+    if (check_fields(json_doc) < 0) {
+        platform_print("PacketHandler: check_fields() failed\n");
+        return -1;
     }
-    
-    int command = check_command(payload);                       
+
+    const char* protocol = json_doc["protocol"].as<const char*>();
+    int robot_id         = json_doc["robot_id"].as<int>();
+    int message_type     = json_doc["message_type"].as<int>();
+    int request_id       = json_doc["request_uuid"].as<int>();
+    int mode             = json_doc["mode"].as<int>();
+    JsonObject payload   = json_doc["payload"].as<JsonObject>();
+    long timestamp       = json_doc["timestamp"].as<long>();
+
+    platform_print("PacketHandler: protocol=%s robot_id=%d message_type=%d request_id=%d mode=%d timestamp=%ld\n",
+        protocol, robot_id, message_type, request_id, mode, timestamp);
+
+
+    if (message_type != (int)MessageType_t::MessageType_COMMAND)
+    {
+        platform_print("PacketHandler: ignoring non-command message (type=%d)\n", message_type);
+        return 0;
+    }
+
+    int command = check_command(payload);
+    platform_print("PacketHandler: command=%d\n", command);
+
     switch(command){
         case CommandType_t::CommandType_GET_PROPERTY:
+            platform_print("PacketHandler: routing to get_config_handler\n");
             GetConfigPayload_t get_config_payload;
             if(get_get_config_payload(payload, &get_config_payload) < 0){
-                platform_print("Invalid payload for get_config command\n");
+                platform_print("PacketHandler: invalid payload for get_config command\n");
                 return -1;
             }
+            platform_print("PacketHandler: get_config prop=%d\n", get_config_payload.prop);
             get_config_handler(request_id, &get_config_payload);
         break;
         case CommandType_t::CommandType_SET_PROPERTY:
+            platform_print("PacketHandler: routing to set_config_handler\n");
             SetConfigPayload_t set_config_payload;
             if(get_set_config_payload(payload, &set_config_payload) < 0){
-                platform_print("Invalid payload for set_config command\n");
+                platform_print("PacketHandler: invalid payload for set_config command\n");
                 return -1;
-            }    
+            }
+            platform_print("PacketHandler: set_config prop=%d new_value=%d\n", set_config_payload.prop, set_config_payload.new_value);
             set_config_handler(request_id, &set_config_payload);
         break;
         case CommandType_t::CommandType_EMERGENCY_STOP:
+            platform_print("PacketHandler: routing to emergency_stop_handler\n");
             EmergencyStopPayload_t emergency_stop_payload;
             if(get_emergency_stop_payload(payload, &emergency_stop_payload) < 0){
-                platform_print("Invalid payload for emergency_stop command\n");
+                platform_print("PacketHandler: invalid payload for emergency_stop command\n");
                 return -1;
-            }    
+            }
             emergency_stop_handler(request_id, &emergency_stop_payload);
         break;
         case CommandType_t::CommandType_RESET:
+            platform_print("PacketHandler: routing to reset_handler\n");
             ResetPayload_t reset_payload;
             if(get_reset_payload(payload, &reset_payload) < 0){
-                platform_print("Invalid payload for reset command\n");
+                platform_print("PacketHandler: invalid payload for reset command\n");
                 return -1;
-            }    
+            }
             reset_handler(request_id, &reset_payload);
         break;
         case CommandType_t::CommandType_MOTOR_CONTROL:
+            platform_print("PacketHandler: routing to motor_control_handler\n");
             MotorControlPayload_t motor_control_payload;
             if(get_motor_control_payload(payload, &motor_control_payload) < 0){
-                platform_print("Invalid payload for motor control command\n");
+                platform_print("PacketHandler: invalid payload for motor_control command\n");
                 return -1;
             }
+            platform_print("PacketHandler: motor_control dir=%d speed=%d angle=%d duration=%d\n",
+                motor_control_payload.direction, motor_control_payload.speed,
+                motor_control_payload.angle, motor_control_payload.duration);
             motor_control_handler(request_id, &motor_control_payload);
         break;
         case CommandType_t::CommandType_MOVE:
+            platform_print("PacketHandler: routing to move_handler\n");
             MovePayload_t move_payload;
             if(get_move_payload(payload, &move_payload) < 0){
-                platform_print("Invalid payload for move command\n");
+                platform_print("PacketHandler: invalid payload for move command\n");
                 return -1;
             }
             move_handler(request_id, &move_payload);
         break;
         default:
-            platform_print("unrecognized command value: %d\n", command);
+            platform_print("PacketHandler: unrecognized command value: %d\n", command);
             return -1;
         break;
     }
